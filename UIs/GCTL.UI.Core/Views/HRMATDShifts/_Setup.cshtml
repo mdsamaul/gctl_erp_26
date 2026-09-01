@@ -1,0 +1,305 @@
+﻿@model GCTL.Core.ViewModels.HrmAtdShifts.HrmAtdShiftSetupViewModel
+
+@{
+    var isEditing = Model.AutoId > 0;
+    var currentTime = DateTime.Now.ToString("hh:mm:ss tt");
+}
+
+<style>
+    body {
+        background-color: #f5f7fa;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .card {
+        margin-bottom: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .card-header {
+        background-color: #3498db;
+        color: #000;
+        font-weight: 600;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .form-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .required::after {
+        content: "*";
+        color: red;
+        margin-left: 3px;
+    }
+
+    .time-section {
+        padding: 0;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        width: 100%;
+    }
+
+    .time-picker-container {
+        width: 100%;
+        padding: 0;
+        margin: 0;
+    }
+
+    .time-picker-wrapper {
+        /* ensure wrapper doesn't hide parts of Flatpickr, allow overflow as needed */
+        position: relative;
+        overflow: visible;
+    }
+
+    .select2-container {
+        width: 100% !important;
+    }
+
+    .dataTables_filter {
+        margin-right: 0px !important;
+    }
+
+    /*
+     * Flatpickr-specific overrides to keep time picker compact inside its column
+     * and prevent the AM/PM selector from being pushed outside at wide viewports.
+     *
+     * These are scoped to our time picker container so other flatpickr instances
+     * elsewhere are not affected.
+     */
+    .time-picker-container .flatpickr-calendar,
+    .time-picker-container .flatpickr-time {
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Make the time panel use a compact flex layout */
+    .time-picker-container .flatpickr-time {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        padding: 4px 6px !important;
+        justify-content: flex-start !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+    }
+
+    /* Ensure number inputs don't introduce extra internal padding */
+    .time-picker-container .flatpickr-time .numInputWrapper {
+        padding: 0 !important;
+        margin: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+
+    .time-picker-container .flatpickr-time input {
+        width: auto !important;
+        min-width: 36px !important;
+        padding: 4px 6px !important;
+        font-size: 0.95rem !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Keep the separator small */
+    .time-picker-container .flatpickr-time .flatpickr-time-separator {
+        padding: 0 4px !important;
+        margin: 0 !important;
+        font-size: 1rem !important;
+        line-height: 1 !important;
+    }
+
+    /* AM/PM control — make it compact and prevent wrapping */
+    .time-picker-container .flatpickr-am-pm,
+    .time-picker-container .flatpickr-am-pm input,
+    .time-picker-container .flatpickr-am-pm span {
+        min-width: 44px !important;
+        padding: 4px 6px !important;
+        margin-left: 6px !important;
+        white-space: nowrap !important;
+        box-sizing: border-box !important;
+        font-size: 0.9rem !important;
+    }
+
+    /* If flatpickr attempts absolute positioning that pushes it off-screen, allow it to anchor within container */
+    .time-picker-container .flatpickr-calendar {
+        left: auto !important;
+        right: 0 !important;
+    }
+
+    /* Tighter layout at wider screens (including your 1300px case) */
+    @@media (min-width: 1200px) {
+        .time-picker-container .flatpickr-time {
+            gap: 4px !important;
+            padding: 3px 5px !important;
+        }
+
+        .time-picker-container .flatpickr-am-pm {
+            min-width: 40px !important;
+            padding: 3px 6px !important;
+        }
+    }
+
+    /* Extremely narrow columns: allow wrapping of the time inputs rather than overflow */
+    @@media (max-width: 575.98px) {
+        .time-picker-container .flatpickr-time {
+            flex-wrap: wrap !important;
+            gap: 4px !important;
+        }
+
+        .time-picker-container .flatpickr-am-pm {
+            margin-left: 0 !important;
+        }
+    }
+</style>
+
+
+<div class="container py-0">
+    <div>
+        <input type="hidden" id="lastCode" />
+        <input type="hidden" asp-for="Id" />
+        <input type="hidden" asp-for="Ldate" />
+        <input type="hidden" asp-for="ModifyDate" />
+        <input type="hidden" asp-for="AutoId" />
+
+        <!-- Basic Information Section -->
+        <div class="mb-0">
+           
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-12 col-md-6 col-xl-4">
+                        <div class="form-group">
+                            <label for="ShiftTypeIdDD" class="form-label required">Shift Type</label>
+                            <select asp-for="ShiftTypeId" id="ShiftTypeIdDD" class="form-control form-control-sm" tabindex="1"
+                                    asp-items="@(ViewBag.ShiftTypeDD as SelectList)">
+                                <option value="">--Select Shift Type--</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-xl-4">
+                        <div class="form-group">
+                            <label for="ShiftCode" class="form-label">Shift ID</label>
+                            <input asp-for="ShiftCode" type="text" class="form-control form-control-sm js-ShiftCode-code" readonly="readonly" />
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-xl-4">
+                        <div class="form-group">
+                            <label for="ShiftName" class="form-label required">Shift Name</label>
+                            <input type="text" asp-for="ShiftName" id="ShiftName" name="ShiftName" class="form-control form-control-sm js-hRMATDShifts-check-duplicateName" placeholder="Enter Shift Name" tabindex="2" autofocus />
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-xl-4">
+                        <div class="form-group">
+                            <label asp-for="Description" class="form-label">Description</label>
+                            <input type="text" id="Description" asp-for="ShiftShortName" name="Description" class="form-control form-control-sm" placeholder="Enter Description" tabindex="3" />
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-xl-4">
+                        <div class="form-group">
+                            <label asp-for="Wef" class="form-label required">W.E.F </label>
+                            <input type="text" id="WefDate" placeholder="dd/MM/yyyy" asp-for="Wef" class="form-control form-control-sm datepicker" />
+                            <input type="hidden" id="WefHidden" name="Wef" />
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-xl-4">
+                        <div class="form-group">
+                            <label asp-for="Remarks" class="form-label">Remarks</label>
+                            <textarea type="text" class="form-control form-control-sm" placeholder="Enter Remarks" style=" resize: none;" asp-for="Remarks" tabindex="9" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shift Timing Section -->
+            <div class="mb-3">
+                <div class="bg-light text-dark py-1 px-4">
+                    <i class="fas fa-hourglass-half me-2"></i> Shift Timing
+                </div>
+
+
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="form-group">
+                                <label for="inTimeInput" class="form-label">In Time</label>
+                                <div class="time-picker-wrapper">
+                                    <div id="inTimeInput" class="time-picker-container w-100 p-0 m-0"></div>
+                                </div>
+                                <input type="hidden"
+                                       value="@(isEditing && Model.ShiftStartTime != default(DateTime) ? Model.ShiftStartTime.ToString("hh:mm:ss tt") : null)"
+                                       id="inDateTimeInput" name="ShiftStartTime" />
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="form-group">
+                                <label for="outTimeInput" class="form-label">Out Time</label>
+                                <div class="time-picker-wrapper">
+                                    <div id="outTimeInput" class="time-picker-container w-100 p-0 m-0"></div>
+                                </div>
+                                <input type="hidden"
+                                       value="@(isEditing && Model.ShiftEndTime != default(DateTime) ? Model.ShiftEndTime.ToString("hh:mm:ss tt") : null)"
+                                       id="outDateTimeInput" name="ShiftEndTime" />
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="form-group">
+                                <label for="lateTimeInput" class="form-label">Late Time</label>
+                                <div class="time-picker-wrapper">
+                                    <div id="lateTimeInput" class="time-picker-container w-100 p-0 m-0"></div>
+                                </div>
+                                <input type="hidden"
+                                       value="@(isEditing && Model.LateTime != default(DateTime) ? Model.LateTime.ToString("hh:mm:ss tt") : null)"
+                                       id="lateDateTimeInput" name="LateTime" class="form-control form-control-sm" />
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="form-group">
+                                <label for="AbsentTimeInput" class="form-label">Absent Time</label>
+                                <div class="time-picker-wrapper">
+                                    <div id="AbsentTimeInput" class="time-picker-container w-100 p-0 m-0"></div>
+                                </div>
+                                <input type="hidden"
+                                       value="@(isEditing && Model.AbsentTime != default(DateTime) ? Model.AbsentTime.ToString("hh:mm:ss tt") : null)"
+                                       id="AbsentDateTimeInput" name="AbsentTime" />
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="form-group">
+                                <label for="LunchOutTime" class="form-label">Lunch Out Time</label>
+                                <div class="time-picker-wrapper">
+                                    <div id="LunchOutTime" class="time-picker-container w-100 p-0 m-0"></div>
+                                </div>
+                                <input type="hidden"
+                                       value="@(isEditing && Model.LunchOutTime != default(DateTime) ? Model.LunchOutTime.ToString("hh:mm:ss tt") : null)"
+                                       id="LunchOutDateTime" name="LunchOutTime" />
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="form-group">
+                                <label for="LunchInTime" class="form-label">Lunch In Time</label>
+                                <div class="time-picker-wrapper">
+                                    <div id="LunchInTime" class="time-picker-container w-100 p-0 m-0"></div>
+                                </div>
+                                <input type="hidden"
+                                       value="@(isEditing && Model.LunchInTime != default(DateTime) ? Model.LunchInTime.ToString("hh:mm:ss tt") : null)"
+                                       id="LunchInDateTime" name="LunchInTime" />
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="form-group">
+                                <label for="LunchBreakHour" class="form-label">Lunch Break (Hour)</label>
+                                <input type="number" asp-for="LunchBreakHour" id="LunchBreakHour"
+                                       class="form-control form-control-sm" name="LunchBreakHour" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
