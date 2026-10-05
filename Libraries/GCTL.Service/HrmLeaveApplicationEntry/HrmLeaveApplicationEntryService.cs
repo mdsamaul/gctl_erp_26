@@ -4858,26 +4858,21 @@ namespace GCTL.Service.HrmLeaveApplicationEntrys
                 {
                     await connection.OpenAsync();
                     var parameters = new DynamicParameters();
-                    parameters.Add("@DateFrom", model.DateFrom, DbType.Date);
-                    parameters.Add("@DateTo", model.DateTo, DbType.Date);
+                    parameters.Add("@DateFrom", model.DateFrom == DateTime.MinValue ? (object)DBNull.Value : model.DateFrom, DbType.DateTime);
+                    parameters.Add("@DateTo", model.DateTo == DateTime.MinValue ? (object)DBNull.Value : model.DateTo, DbType.DateTime);
+                    parameters.Add("@Company", model.Company != null && model.Company.Length > 0 ? string.Join(", ", model.Company) : (object)DBNull.Value, DbType.String);
+                    parameters.Add("@Branch", model.Branch != null && model.Branch.Length > 0 ? string.Join(", ", model.Branch) : (object)DBNull.Value, DbType.String);
+                    parameters.Add("@Department", model.Department != null && model.Department.Length > 0 ? string.Join(", ", model.Department) : (object)DBNull.Value, DbType.String);
+                    parameters.Add("@Employee", model.Employee != null && model.Employee.Any() ? string.Join(", ", model.Employee) : (object)DBNull.Value, DbType.String);
+                    parameters.Add("@LeaveFormat", model.LeaveFormat != null && model.LeaveFormat.Length > 0 ? string.Join(", ", model.LeaveFormat) : (object)DBNull.Value, DbType.String);
+                    parameters.Add("@LeaveStatus", model.LeaveStatus != null && model.LeaveStatus.Length > 0 ? string.Join(", ", model.LeaveStatus) : (object)DBNull.Value, DbType.String);
+                    parameters.Add("@ReportType", "Report", DbType.String);
 
-                    //parameters.Add("@DateFrom", model.DateFrom.ToString("dd/MM/yyyy"), DbType.String);
-                    //parameters.Add("@DateTo", model.DateTo.ToString("dd/MM/yyyy"), DbType.String);
-
-
-                    parameters.Add("@Company", model.Company != null ? string.Join(", ", model.Company) : (object)DBNull.Value, DbType.String);
-                    parameters.Add("@Branch", model.Branch != null ? string.Join(", ", model.Branch) : (object)DBNull.Value, DbType.String);
-                    parameters.Add("@Department", model.Department != null ? string.Join(", ", model.Department) : (object)DBNull.Value, DbType.String);
-                    parameters.Add("@Employee", model.Employee != null ? string.Join(", ", model.Employee) : (object)DBNull.Value, DbType.String);
-                    parameters.Add("@LeaveFormat", model.LeaveFormat != null ? string.Join(", ", model.LeaveFormat) : (object)DBNull.Value, DbType.String);
-                    parameters.Add("@LeaveStatus", model.LeaveStatus != null ? string.Join(", ", model.LeaveStatus) : (object)DBNull.Value, DbType.String);
-                    // parameters.Add("@ReportFormat", model.ReportFormat, DbType.String);
-
-                    string query = BuildQueryString(parameters);
-                    Console.WriteLine($"Generated SQL Query: {query}");
-
-                    var results1 = await connection.QueryAsync<dynamic>(query, parameters);
-                    var results = await connection.QueryAsync<LeaveDetailVM>(query, parameters);
+                    var results = await connection.QueryAsync<LeaveDetailVM>(
+                        "GetLeaveReport100",
+                        parameters,
+                        commandType: CommandType.StoredProcedure
+                    );
 
                     // Transform flat results into hierarchical structure
                     var groupedData = new Dictionary<string, CompanyLeaveDataVM>();
