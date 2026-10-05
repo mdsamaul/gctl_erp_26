@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using DocumentFormat.OpenXml.InkML;
 using DocumentFormat.OpenXml.Wordprocessing;
 using GCTL.Core.Data;
@@ -98,10 +98,11 @@ namespace GCTL.Service.HrmLeaveSummaryReports
             param.Add("@Page", page, DbType.Int32);
             param.Add("@PageSize", pageSize, DbType.Int32);
             param.Add("@Search", string.IsNullOrEmpty(search) ? null : search, DbType.String);
-            param.Add("@EmployeeId", string.IsNullOrEmpty(employeeId) ? null : employeeId, DbType.String);  // ← নতুন
+            param.Add("@EmployeeId", string.IsNullOrEmpty(employeeId) ? null : employeeId, DbType.String);
+            param.Add("@ReportType", "Dashboard", DbType.String);
 
             using var multi = await con.QueryMultipleAsync(
-                "usp_GetLeaveDashboard",
+                "GetLeaveReport100",
                 param,
                 commandType: CommandType.StoredProcedure
             );
@@ -130,102 +131,84 @@ namespace GCTL.Service.HrmLeaveSummaryReports
         public async Task<LeaveSummaryFilterListViewModel> GetDataAsync(LeaveSummaryFilterViewModel filter)
         {
             var asOf = DateTime.Now.Date;
+            int year = asOf.Year;
 
-            var empQuery = from eoi in empOffRepo.All().AsNoTracking()
-                           join e in employeeRepo.All().AsNoTracking() on eoi.EmployeeId equals e.EmployeeId
-                           join dg in desiRepo.All().AsNoTracking() on eoi.DesignationCode equals dg.DesignationCode into dgJoin
-                           from dg in dgJoin.DefaultIfEmpty()
-                           join cb in branchRepo.All().AsNoTracking() on eoi.BranchCode equals cb.BranchCode into cbJoin
-                           from cb in cbJoin.DefaultIfEmpty()
-                           join dp in depRepo.All().AsNoTracking() on eoi.DepartmentCode equals dp.DepartmentCode into dpJoin
-                           from dp in dpJoin.DefaultIfEmpty()
-                           join cp in companyRepo.All().AsNoTracking() on eoi.CompanyCode equals cp.CompanyCode into cpJoin
-                           from cp in cpJoin.DefaultIfEmpty()
-                           select new
-                           {
-                               EmpId = e.EmployeeId,
-                               EmpName = (e.FirstName ?? "") + " " + (e.LastName ?? ""),
-                               CompanyCode = eoi.CompanyCode ?? "",
-                               CompanyName = cp.CompanyName ?? "",
-                               BranchCode = cb.BranchCode ?? "",
-                               BranchName = cb.BranchName ?? "",
-                               DesignationCode = dg.DesignationCode ?? "",
-                               DesignationName = dg.DesignationName ?? "",
-                               DepartmentCode = dp.DepartmentCode ?? "",
-                               DepartmentName = dp.DepartmentName ?? "",
-                               JoiningDate = eoi.JoiningDate
-                           };
+            // 1. Fetch live unified leave dashboard dataset via Stored Procedure
+            var param = new DynamicParameters();
+            param.Add("@CompanyCode", filter.CompanyCodes?.FirstOrDefault());
+            param.Add("@CompanyCodes", ToCsv(filter.CompanyCodes));
+            param.Add("@BranchCode", filter.BranchCodes?.FirstOrDefault());
+            param.Add("@BranchCodes", ToCsv(filter.BranchCodes));
+            param.Add("@DepartmentCode", filter.DepartmentCodes?.FirstOrDefault());
+            param.Add("@DepartmentCodes", ToCsv(filter.DepartmentCodes));
+            param.Add("@EmployeeId", filter.EmployeeIDs?.FirstOrDefault());
+            param.Add("@EmployeeIds", ToCsv(filter.EmployeeIDs));
+            param.Add("@Year", year);
+            param.Add("@Page", 1);
+            param.Add("@PageSize", 100000); // Retrieve all filtered records for full report
+            param.Add("@Search", string.IsNullOrWhiteSpace(filter.Search) ? null : filter.Search.Trim());
+            param.Add("@ReportType", "Dashboard");
 
-            if (filter.CompanyCodes?.Any() == true)
-                empQuery = empQuery.Where(x => x.CompanyCode != null && filter.CompanyCodes.Contains(x.CompanyCode));
-            if (filter.BranchCodes?.Any() == true)
-                empQuery = empQuery.Where(x => x.BranchCode != null && filter.BranchCodes.Contains(x.BranchCode));
-            if (filter.DepartmentCodes?.Any() == true)
-                empQuery = empQuery.Where(x => x.DepartmentCode != null && filter.DepartmentCodes.Contains(x.DepartmentCode));
-            if (filter.DesignationCodes?.Any() == true)
-                empQuery = empQuery.Where(x => x.DesignationCode != null && filter.DesignationCodes.Contains(x.DesignationCode));
-            if (filter.EmployeeIDs?.Any() == true)
-                empQuery = empQuery.Where(x => x.EmpId != null && filter.EmployeeIDs.Contains(x.EmpId));
+            using var con = new SqlConnection(_configuration);
+            await con.OpenAsync();
 
-            var employees = await empQuery.Where(x => x.EmpId != null).Distinct().ToListAsync();
+            using var multi = await con.QueryMultipleAsync(
+                "GetLeaveReport100",
+                param,
+                commandType: CommandType.StoredProcedure
+            );
 
-            var leaveTypes = await leaveTypeRepo.All().AsNoTracking()
-                .OrderBy(lt => lt.LeaveTypeCode)
-                .Select(lt => new LeaveTypeDto2
-                {
-                    Code = lt.ShortName,
-                    Name = lt.Name,
-                    GrantedDays = lt.NoOfDay
-                }).ToListAsync();
+            // RS1: Summary Cards
+            var summary = await multi.ReadFirstOrDefaultAsync<LeaveSummaryCardDto>() ?? new LeaveSummaryCardDto();
 
-            var empIds = employees.Select(x => x.EmpId).Distinct().ToList();
+            // RS2: Leave Types (ordered by custom sequence: CL, SL, UL, ML, PL, MarL, HL, UmrL)
+            var leaveTypesRaw = (await multi.ReadAsync<LeaveTypeDto>()).ToList();
 
-            // Leave taken is assigned to the cycle that contains the leave's StartDate.
-            // TODO: confirm whether HrmLeaveApplicationEntry.LeaveTypeId stores LeaveTypeCode or AutoId.
-            var approvedEntries = await entryRepo.All().AsNoTracking()
-                .Where(x => empIds.Contains(x.EmployeeId) && x.HrapprovalStatus == ApprovedStatus)
-                .Select(x => new { x.EmployeeId, x.LeaveTypeId, x.StartDate, x.NoOfDay })
-                .ToListAsync();
+            // RS3: Flat rows
+            var employeeRows = (await multi.ReadAsync<EmployeeLeaveRowDto>()).ToList();
 
-            var leaveSummary = new List<LeaveSummaryRowDto>();
-
-            foreach (var emp in employees)
+            var leaveTypes = leaveTypesRaw.Select(lt => new LeaveTypeDto2
             {
-                var joining = emp.JoiningDate ?? asOf;
-                var (cycleStart, cycleEnd) = GetCurrentCycle(joining, asOf);
+                Code = lt.ShortName,
+                Name = lt.ShortName,
+                GrantedDays = lt.NoOfDay
+            }).ToList();
 
-                var availedByType = approvedEntries
-                    .Where(x => x.EmployeeId == emp.EmpId && x.StartDate >= cycleStart && x.StartDate < cycleEnd)
-                    .GroupBy(x => x.LeaveTypeId)
-                    .ToDictionary(g => g.Key, g => g.Sum(x => x.NoOfDay));
-
-                var balances = leaveTypes.Select(lt =>
+            var leaveSummary = employeeRows
+                .GroupBy(x => x.EmployeeId)
+                .Select(g =>
                 {
-                    var availed = availedByType.TryGetValue(lt.Code, out var d) ? d : 0;
-                    return new LeaveTypeBalanceDto
+                    var first = g.First();
+                    DateTime.TryParseExact(first.JoiningDate, "dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var jDate);
+                    if (jDate <= DateTime.MinValue) jDate = asOf;
+
+                    return new LeaveSummaryRowDto
                     {
-                        LeaveTypeCode = lt.Code,
-                        Granted = lt.GrantedDays,
-                        Availed = availed,
-                        Balance = lt.GrantedDays - availed
+                        EmployeeId = first.EmployeeId,
+                        EmployeeName = first.Name,
+                        DesignationName = first.Designation,
+                        DepartmentName = first.DepartmentName ?? "",
+                        BranchName = first.BranchName ?? "",
+                        CompanyName = first.CompanyName ?? "",
+                        JoiningDate = first.JoiningDate,
+                        CycleStart = jDate,
+                        CycleEnd = jDate.AddYears(1),
+                        LeaveBalances = leaveTypes.Select(lt =>
+                        {
+                            var row = g.FirstOrDefault(b => string.Equals(b.LeaveShortName, lt.Code, StringComparison.OrdinalIgnoreCase)
+                                                         || string.Equals(b.LeaveTypeCode, lt.Code, StringComparison.OrdinalIgnoreCase));
+                            return new LeaveTypeBalanceDto
+                            {
+                                LeaveTypeCode = lt.Code,
+                                Granted = row?.GrantedDays ?? 0,
+                                Availed = row?.AvailedDays ?? 0,
+                                Balance = row?.BalancedDays ?? 0
+                            };
+                        }).ToList()
                     };
                 }).ToList();
 
-                leaveSummary.Add(new LeaveSummaryRowDto
-                {
-                    EmployeeId = emp.EmpId,
-                    EmployeeName = emp.EmpName,
-                    CompanyName = emp.CompanyName,
-                    BranchName = emp.BranchName,
-                    DepartmentName = emp.DepartmentName,
-                    DesignationName = emp.DesignationName,
-                    JoiningDate = joining.ToString("dd/MM/yyyy"),
-                    CycleStart = cycleStart,
-                    CycleEnd = cycleEnd,
-                    LeaveBalances = balances
-                });
-            }
-
+            // Dropdown filters lookup
             var company = await companyRepo.All().AsNoTracking()
                 .Select(c => new LookupDto { Code = c.CompanyCode, Name = c.CompanyName }).ToListAsync();
 
@@ -235,23 +218,31 @@ namespace GCTL.Service.HrmLeaveSummaryReports
                 .Select(b => new LookupDto { Code = b.BranchCode, Name = b.BranchName })
                 .Distinct().ToListAsync();
 
+            var allDepartments = await depRepo.All().AsNoTracking()
+                .Where(d => d.DepartmentCode != null && d.DepartmentName != null)
+                .OrderBy(d => d.DepartmentName)
+                .Select(d => new LookupDto { Code = d.DepartmentCode, Name = d.DepartmentName })
+                .Distinct().ToListAsync();
+
+            var allDesignations = await desiRepo.All().AsNoTracking()
+                .Where(d => d.DesignationCode != null && d.DesignationName != null)
+                .OrderBy(d => d.DesignationName)
+                .Select(d => new LookupDto { Code = d.DesignationCode, Name = d.DesignationName })
+                .Distinct().ToListAsync();
+
+            var allEmployees = leaveSummary
+                .Select(x => new LookupDto { Code = x.EmployeeId, Name = x.EmployeeName })
+                .GroupBy(x => x.Code)
+                .Select(g => g.First())
+                .ToList();
+
             var result = new LeaveSummaryFilterListViewModel
             {
                 Companies = company,
                 Branches = allBranch,
-
-                Departments = employees.Where(x => x.DepartmentCode != null && x.DepartmentName != null)
-                    .Select(x => new LookupDto { Code = x.DepartmentCode, Name = x.DepartmentName })
-                    .Distinct().ToList(),
-
-                Designations = employees.Where(x => x.DesignationCode != null && x.DesignationName != null)
-                    .Select(x => new LookupDto { Code = x.DesignationCode, Name = x.DesignationName })
-                    .Distinct().ToList(),
-
-                Employees = employees.Where(x => x.EmpId != null && x.EmpName != null)
-                    .Select(x => new LookupDto { Code = x.EmpId, Name = x.EmpName })
-                    .Distinct().ToList(),
-
+                Departments = allDepartments,
+                Designations = allDesignations,
+                Employees = allEmployees,
                 LeaveTypes = leaveTypes,
                 LeaveSummary = leaveSummary
             };

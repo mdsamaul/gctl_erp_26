@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using GCTL.Core.ViewModels.Dashboard;
 using Microsoft.Extensions.Configuration;
 using System.Data;
@@ -152,11 +152,12 @@ namespace GCTL.Service.DashboardAttendance
             param.Add("@PageSize", pageSize, DbType.Int32);
             param.Add("@Search", string.IsNullOrEmpty(search) ? null : search, DbType.String);
             param.Add("@EmployeeId", string.IsNullOrEmpty(employeeId) ? null : employeeId, DbType.String);
-            param.Add("@LoginEmployeeId", string.IsNullOrEmpty(loginEmployeeId) ? null : loginEmployeeId, DbType.String);   // ← নতুন
-            param.Add("@AccessCodeId", string.IsNullOrEmpty(accessCodeId) ? null : accessCodeId, DbType.String);            // ← নতুন
+            param.Add("@LoginEmployeeId", string.IsNullOrEmpty(loginEmployeeId) ? null : loginEmployeeId, DbType.String);
+            param.Add("@AccessCodeId", string.IsNullOrEmpty(accessCodeId) ? null : accessCodeId, DbType.String);
+            param.Add("@ReportType", "Dashboard", DbType.String);
 
             using var multi = await con.QueryMultipleAsync(
-                "usp_GetLeaveDashboard",
+                "GetLeaveReport100",
                 param,
                 commandType: CommandType.StoredProcedure
             );

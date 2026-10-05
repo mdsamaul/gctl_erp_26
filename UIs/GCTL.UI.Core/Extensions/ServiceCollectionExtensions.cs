@@ -92,6 +92,7 @@ using GCTL.Service.HrmDefSeparationTypes;
 using GCTL.Service.HrmEmployeeOfficialInfoServe;
 using GCTL.Service.HrmEmployees2;
 using GCTL.Service.HrmEmployeeSalaryInfoReport;
+using GCTL.Service.HrmLeaveSummaryReports;
 using GCTL.Service.HRMPayrollLoan;
 using GCTL.Service.HRMTransportAssignEntryService;
 using GCTL.Service.HRMTransportExpenseEntryService;
@@ -268,6 +269,7 @@ namespace GCTL.UI.Core.Extensions
             services.AddScoped<IGcAccessFilterService, GcAccessFilterService>();
             services.AddScoped<IHRLettersReportService, HRLettersReportService>();
             services.AddScoped<IDailyAttendanceSummaryReportService, DailyAttendanceSummaryReportService>();
+            services.AddScoped<IHrmLeaveSummaryReportService, HrmLeaveSummaryReportService>();
 
 
             services.AddScoped<IProductIssueEntryService, ProductIssueEntryService>();

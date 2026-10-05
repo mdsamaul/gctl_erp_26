@@ -1,4 +1,4 @@
-﻿// GCTL.Core/ViewModels/Dashboard/LeaveDashboardDtos.cs — replace করো
+// GCTL.Core/ViewModels/Dashboard/LeaveDashboardDtos.cs — replace করো
 
 namespace GCTL.Core.ViewModels.Dashboard
 {
@@ -22,6 +22,9 @@ namespace GCTL.Core.ViewModels.Dashboard
         public string EmployeeId { get; set; }
         public string Name { get; set; }
         public string Designation { get; set; }
+        public string? DepartmentName { get; set; }
+        public string? BranchName { get; set; }
+        public string? CompanyName { get; set; }
         public string JoiningDate { get; set; }
         public string LeaveTypeCode { get; set; }
         public string LeaveShortName { get; set; }

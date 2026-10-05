@@ -169,128 +169,84 @@ namespace GCTL.Service.LeaveReport
 
         public async Task<List<LeaveApplicartionGridVM>> GetLeaveReportArrayAsync(LeaveReportArrayViewModel model)
         {
-            var company = model.Company?.ToList();
-            var branch = model.Branch?.ToList();
-            var department = model.Department?.ToList();
-            var employee = model.Employee?.ToList();
-            var leaveFormat = model.LeaveFormat?.ToList();
-            var leaveStatus = model.LeaveStatus?.ToList();
-            DateTime? dateFrom = model.DateFrom == default ? null : model.DateFrom;
-            DateTime? dateTo = model.DateTo == default ? null : model.DateTo;
+            var connStr = _configuration.GetConnectionString("ApplicationDbConnection");
+            await using var connection = new SqlConnection(connStr);
+            await connection.OpenAsync();
 
-            bool hasCompany = company != null && company.Count > 0;
-            bool hasBranch = branch != null && branch.Count > 0;
-            bool hasDepartment = department != null && department.Count > 0;
-            bool hasEmployee = employee != null && employee.Count > 0;
-            bool hasLeaveFormat = leaveFormat != null && leaveFormat.Count > 0;
-            bool hasLeaveStatus = leaveStatus != null && leaveStatus.Count > 0;
+            var parameters = new DynamicParameters();
+            parameters.Add("@DateFrom", model.DateFrom == DateTime.MinValue ? (object)DBNull.Value : model.DateFrom, DbType.DateTime);
+            parameters.Add("@DateTo", model.DateTo == DateTime.MinValue ? (object)DBNull.Value : model.DateTo, DbType.DateTime);
+            parameters.Add("@Company", model.Company != null && model.Company.Length > 0 ? string.Join(", ", model.Company) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@Branch", model.Branch != null && model.Branch.Length > 0 ? string.Join(", ", model.Branch) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@Department", model.Department != null && model.Department.Length > 0 ? string.Join(", ", model.Department) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@Employee", model.Employee != null && model.Employee.Any() ? string.Join(", ", model.Employee) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@LeaveFormat", model.LeaveFormat != null && model.LeaveFormat.Length > 0 ? string.Join(", ", model.LeaveFormat) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@LeaveStatus", model.LeaveStatus != null && model.LeaveStatus.Length > 0 ? string.Join(", ", model.LeaveStatus) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@ReportType", "Report", DbType.String);
 
-            var baseQuery =
-                from l in _context.HrmLeaveApplicationEntry.AsNoTracking()
-                join e in _context.HrmEmployee on l.EmployeeId equals e.EmployeeId
-                join oe in _context.HrmEmployeeOfficialInfo on l.EmployeeId equals oe.EmployeeId
-                join hod0 in _context.HrmEmployee on l.Hod equals hod0.EmployeeId into hodJoin
-                from hod in hodJoin.DefaultIfEmpty()
-                join sup0 in _context.HrmEmployee on l.BossEmpAutoId equals sup0.EmployeeId into supJoin
-                from sup in supJoin.DefaultIfEmpty()
-                join type0 in _context.HrmAtdLeaveType on l.LeaveTypeId equals type0.LeaveTypeCode into typeJoin
-                from type in typeJoin.DefaultIfEmpty()
-                join dep0 in _context.HrmDefDepartment on oe.DepartmentCode equals dep0.DepartmentCode into depJoin
-                from dep in depJoin.DefaultIfEmpty()
-                join desig0 in _context.HrmDefDesignation on oe.DesignationCode equals desig0.DesignationCode into desigJoin
-                from desig in desigJoin.DefaultIfEmpty()
-                join comp0 in _context.CoreCompany on l.CompanyCode equals comp0.CompanyCode into compJoin
-                from comp in compJoin.DefaultIfEmpty()
-                where
-                    (!hasLeaveStatus || leaveStatus.Contains(l.HrapprovalStatus)) &&
-                    (dateFrom == null || l.StartDate >= dateFrom) &&
-                    (dateTo == null || l.EndDate <= dateTo) &&
-                    (!hasCompany || company.Contains(l.CompanyCode)) &&
-                    (!hasBranch || branch.Contains(oe.BranchCode)) &&
-                    (!hasDepartment || department.Contains(oe.DepartmentCode)) &&
-                    (!hasEmployee || employee.Contains(l.EmployeeId)) &&
-                    (!hasLeaveFormat || leaveFormat.Contains(l.ApplyLeaveFormat))
-                select new { l, e, hod, sup, type, dep, desig, comp };
+            var results = (await connection.QueryAsync<LeaveDetailVM>(
+                "GetLeaveReport100",
+                parameters,
+                commandType: CommandType.StoredProcedure
+            )).ToList();
 
-            var grouped = await baseQuery
-                .GroupBy(x => new
-                {
-                    x.l.AutoId,
-                    x.l.LeaveAppEntryId,
-                    x.e.EmployeeId,
-                    x.e.FirstName,
-                    x.e.LastName,
-                    DesignationName = x.desig.DesignationName,
-                    LeaveTypeShortName = x.type.ShortName,
-                    x.l.StartDate,
-                    x.l.EndDate,
-                    x.l.NoOfDay,
-                    x.l.ModifyDate,
-                    x.l.ConfirmationRemarks,
-                    x.l.HodapprovalStatus,
-                    x.l.HrapprovalRemarks,
-                    x.l.SickLeaveFilePath,
-                    x.l.HrapprovalStatus,
-                    x.l.ApplyLeaveFormat,
-                    HODFirstName = x.hod.FirstName + " " + x.hod.LastName,
-                    SupervisorFirstName = x.sup.FirstName + " " + x.sup.LastName,
-                    x.l.Reason,
-                    DepartmentName = x.dep.DepartmentName,
-                    x.l.ShortLeaveFrom,
-                    x.l.ShortLeaveTo,
-                    x.l.ShortLeaveTime,
-                    x.l.IsApproved,
-                    x.l.FirstOrSecondHalf
-                })
-                .Select(g => new
-                {
-                    g.Key,
-                    CountTotal = g.Count()
-                })
-                .OrderBy(r => r.Key.DepartmentName)
-                .ToListAsync();
+            if (!results.Any())
+                return new List<LeaveApplicartionGridVM>();
 
-            // Final shaping into the grid VM (in-memory, so string formatting/ternaries are safe here)
-            var result = grouped.Select(r => new LeaveApplicartionGridVM
+            // Fetch leave days only for returned entries
+            var entryIds = results
+                .Where(r => (double)r.NoOfDay > 0.5)
+                .Select(r => r.LeaveAppEntryId)
+                .Distinct()
+                .ToList();
+
+            Dictionary<string, List<string>> leaveDaysMap = new();
+            if (entryIds.Any())
             {
-                EmployeeID = r.Key.EmployeeId,
-                LeaveAppEntryCode = r.Key.AutoId,
-                LeaveAppEntryId = r.Key.LeaveAppEntryId,
-                LeaveTypeId = r.Key.LeaveTypeShortName,
-                StartDate = r.Key.StartDate,
-                EndDate = r.Key.EndDate,
-                NoOfDay = r.Key.NoOfDay,
-                ModifyDate = r.Key.ModifyDate,
-                ConfirmationRemarks = r.Key.ConfirmationRemarks,
-                HODApprovalStatus = r.Key.HodapprovalStatus,
-                HODApprovalRemarks = r.Key.HrapprovalRemarks, // SP had no separate HOD remarks column; reusing as in original
-                SickLeaveFilePath = r.Key.SickLeaveFilePath,
-                HRApprovalStatus = r.Key.HrapprovalStatus,
-                HRApprovalRemarks = r.Key.HrapprovalRemarks,
-                ApplyLeaveFormat = r.Key.ApplyLeaveFormat,
-                HODFirstName = r.Key.HODFirstName,
-                SupervisorFirstName = r.Key.SupervisorFirstName,
-                EmployeeFirstName = r.Key.FirstName + " " + r.Key.LastName,
-                Reason = r.Key.Reason,
-                DepartmentName = r.Key.DepartmentName,
-                DesignationName = r.Key.DesignationName,
-                ShortLeaveFrom = r.Key.ShortLeaveFrom,
-                ShortLeaveTo = r.Key.ShortLeaveTo,
-                ShortLeaveTime = r.Key.ShortLeaveTime,
-                IsApproved = r.Key.IsApproved,
-                FirstOrSecondHalf =
-                    r.Key.FirstOrSecondHalf == "1" ? "First Half" :
-                    r.Key.FirstOrSecondHalf == "2" ? "Second Half" :
-                    null,
-                ShortLeaveFromStr = r.Key.ShortLeaveFrom?.ToString("dd/MM/yyyy"),
-                ShortLeaveToStr = r.Key.ShortLeaveTo?.ToString("dd/MM/yyyy"),
-                ShortLeaveTimeStr = r.Key.ShortLeaveTime?.ToString("HH:mm"),
-                CountTotal = r.CountTotal,
-                Days = null,    // not derivable from this aggregation; populate separately if needed
-                DaysStr = null
-            }).ToList();
+                leaveDaysMap = _leaveDayRepo
+                    .FindBy(d => entryIds.Contains(d.LeaveAppEntryId))
+                    .ToList()
+                    .GroupBy(d => d.LeaveAppEntryId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.Select(d => d.Days.ToString("dd/MM/yyyy")).ToList());
+            }
 
-            return result;
+            return results.Select(item => new LeaveApplicartionGridVM
+            {
+                EmployeeID = item.EmployeeId,
+                LeaveAppEntryCode = decimal.TryParse(item.LeaveAppEntryCode, out var c) ? c : 0,
+                LeaveAppEntryId = item.LeaveAppEntryId,
+                LeaveTypeId = item.LeaveTypeId,
+                StartDate = item.StartDate ?? DateTime.MinValue,
+                EndDate = item.EndDate ?? DateTime.MinValue,
+                NoOfDay = item.NoOfDay,
+                ModifyDate = item.ModifyDate,
+                ConfirmationRemarks = item.ConfirmationRemarks,
+                HODApprovalStatus = item.HODApprovalStatus,
+                HODApprovalRemarks = item.HRApprovalRemarks,
+                SickLeaveFilePath = item.SickLeaveFilePath,
+                HRApprovalStatus = item.HRApprovalStatus,
+                HRApprovalRemarks = item.HRApprovalRemarks,
+                ApplyLeaveFormat = item.ApplyLeaveFormat,
+                HODFirstName = item.HODFirstName,
+                SupervisorFirstName = item.SupervisorFirstName,
+                EmployeeFirstName = item.EmployeeFirstName,
+                Reason = item.Reason,
+                DepartmentName = item.DepartmentName,
+                DesignationName = item.DesignationName,
+                ShortLeaveFrom = item.ShortLeaveFrom,
+                ShortLeaveTo = item.ShortLeaveTo,
+                ShortLeaveTime = item.ShortLeaveTime.HasValue ? TimeOnly.FromTimeSpan(item.ShortLeaveTime.Value) : null,
+                IsApproved = item.IsApproved,
+                FirstOrSecondHalf = item.FirstOrSecondHalf,
+                ShortLeaveFromStr = item.ShortLeaveFrom?.ToString("dd/MM/yyyy"),
+                ShortLeaveToStr = item.ShortLeaveTo?.ToString("dd/MM/yyyy"),
+                ShortLeaveTimeStr = item.ShortLeaveTime?.ToString(@"hh\:mm"),
+                CountTotal = item.TotalLeaves,
+                Days = null,
+                DaysStr = leaveDaysMap.TryGetValue(item.LeaveAppEntryId, out var d) ? d : new List<string>()
+            }).ToList();
         }
 
 
@@ -304,17 +260,21 @@ namespace GCTL.Service.LeaveReport
             await connection.OpenAsync();
 
             var parameters = new DynamicParameters();
-            parameters.Add("@DateFrom", model.DateFrom, DbType.Date);
-            parameters.Add("@DateTo", model.DateTo, DbType.Date);
-            parameters.Add("@Company", model.Company != null ? string.Join(", ", model.Company) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@Branch", model.Branch != null ? string.Join(", ", model.Branch) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@Department", model.Department != null ? string.Join(", ", model.Department) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@Employee", model.Employee != null ? string.Join(", ", model.Employee) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@LeaveFormat", model.LeaveFormat != null ? string.Join(", ", model.LeaveFormat) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@LeaveStatus", model.LeaveStatus != null ? string.Join(", ", model.LeaveStatus) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@DateFrom", model.DateFrom == DateTime.MinValue ? (object)DBNull.Value : model.DateFrom, DbType.DateTime);
+            parameters.Add("@DateTo", model.DateTo == DateTime.MinValue ? (object)DBNull.Value : model.DateTo, DbType.DateTime);
+            parameters.Add("@Company", model.Company != null && model.Company.Length > 0 ? string.Join(", ", model.Company) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@Branch", model.Branch != null && model.Branch.Length > 0 ? string.Join(", ", model.Branch) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@Department", model.Department != null && model.Department.Length > 0 ? string.Join(", ", model.Department) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@Employee", model.Employee != null && model.Employee.Any() ? string.Join(", ", model.Employee) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@LeaveFormat", model.LeaveFormat != null && model.LeaveFormat.Length > 0 ? string.Join(", ", model.LeaveFormat) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@LeaveStatus", model.LeaveStatus != null && model.LeaveStatus.Length > 0 ? string.Join(", ", model.LeaveStatus) : (object)DBNull.Value, DbType.String);
+            parameters.Add("@ReportType", "Report", DbType.String);
 
-            string query = BuildQueryString(parameters);
-            var results = (await connection.QueryAsync<LeaveDetailVM>(query, parameters)).ToList();
+            var results = (await connection.QueryAsync<LeaveDetailVM>(
+                "GetLeaveReport100",
+                parameters,
+                commandType: CommandType.StoredProcedure
+            )).ToList();
 
             if (!results.Any())
                 return new Dictionary<string, CompanyLeaveDataVM>();

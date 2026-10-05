@@ -1,37 +1,44 @@
-namespace GCTL.UI.Core.Views.LeaveApplicationEntry
-{
-    public static class LeaveStatistic
-    {
-        public const string GetLeaveReport100 = @"
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
 -- =====================================================================
 -- Master Procedure: [dbo].[GetLeaveReport100]
--- Purpose: Unified Single Stored Procedure for BOTH:
---          1. Leave Entry / Application Report (Report mode)
---          2. Leave Dashboard (Dashboard mode: Cards, Types, Paged Grid)
--- High Concurrency & Scalability Optimizations:
---   - READ UNCOMMITTED isolation & WITH (NOLOCK) on all base tables to prevent blocking and deadlocks.
---   - In-memory Table Variables for multi-value filters to eliminate tempdb catalog contention.
---   - Clustered Primary Keys on temp processing tables for instant index seek joins.
---   - Covering indexes utilized: IX_HRM_LeaveApp_StartDate_EndDate, IX_HRM_LeaveApp_Emp_Dates_Covering.
+-- Purpose: Unified Single Stored Procedure for the entire Leave Module:
+--          1. Leave Dashboard & Leave Summary Report (@ReportType = 'Dashboard')
+--             - RS1: Summary Cards (TotalApplied, Approved, Canceled, Pending)
+--             - RS2: Leave Types (Strict sequence: CL, SL, UL, ML, PL, MarL, HL, UmrL)
+--             - RS3: Paged Employees with Granted, Availed, Balanced Days & Department/Branch/Company
+--          2. Leave Detail & Application History Report (@ReportType = 'Report')
+--             - Returns single detailed result set with HOD/HR status, date range, reason
 -- =====================================================================
+
+IF OBJECT_ID('[dbo].[usp_GetLeaveDashboard]', 'P') IS NOT NULL
+    DROP PROCEDURE [dbo].[usp_GetLeaveDashboard];
+GO
+
 CREATE OR ALTER PROCEDURE [dbo].[GetLeaveReport100]
     @DateFrom         DATETIME      = NULL,
     @DateTo           DATETIME      = NULL,
     @Company          VARCHAR(MAX)  = NULL,
+    @CompanyCode      VARCHAR(50)   = NULL,
+    @CompanyCodes     NVARCHAR(MAX) = NULL,
     @Branch           VARCHAR(MAX)  = NULL,
+    @BranchCode       VARCHAR(50)   = NULL,
+    @BranchCodes      NVARCHAR(MAX) = NULL,
     @Department       VARCHAR(MAX)  = NULL,
+    @DepartmentCode   VARCHAR(50)   = NULL,
+    @DepartmentCodes  NVARCHAR(MAX) = NULL,
     @Employee         VARCHAR(MAX)  = NULL,
+    @EmployeeId       VARCHAR(50)   = NULL,
+    @EmployeeIds      NVARCHAR(MAX) = NULL,
     @LeaveFormat      VARCHAR(MAX)  = NULL,
     @LeaveStatus      VARCHAR(MAX)  = NULL,
     @ReportFormat     VARCHAR(50)   = NULL,
-    -- Unified Dashboard & Filtering support parameters:
-    @CompanyCode      VARCHAR(50)   = NULL,
-    @BranchCode       VARCHAR(50)   = NULL,
-    @DepartmentCode   VARCHAR(50)   = NULL,
-    @EmployeeId       VARCHAR(50)   = NULL,
     @Year             INT           = NULL,
-    @Page             INT           = NULL,
-    @PageSize         INT           = NULL,
+    @Page             INT           = 1,
+    @PageSize         INT           = 10,
     @Search           VARCHAR(100)  = NULL,
     @LoginEmployeeId  NVARCHAR(50)  = NULL,
     @AccessCodeId     NVARCHAR(50)  = NULL,
@@ -41,11 +48,14 @@ BEGIN
     SET NOCOUNT ON;
     SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 
-    -- 0. Parameters Normalization (Convert '' to NULL)
-    SET @Company         = ISNULL(NULLIF(LTRIM(RTRIM(@Company)), ''), NULLIF(LTRIM(RTRIM(@CompanyCode)), ''));
-    SET @Branch          = ISNULL(NULLIF(LTRIM(RTRIM(@Branch)), ''), NULLIF(LTRIM(RTRIM(@BranchCode)), ''));
-    SET @Department      = ISNULL(NULLIF(LTRIM(RTRIM(@Department)), ''), NULLIF(LTRIM(RTRIM(@DepartmentCode)), ''));
-    SET @Employee        = ISNULL(NULLIF(LTRIM(RTRIM(@Employee)), ''), NULLIF(LTRIM(RTRIM(@EmployeeId)), ''));
+    -- ════════════════════════════════════════════════════════════════
+    -- 0. Input Sanitization & Normalization
+    -- ════════════════════════════════════════════════════════════════
+    DECLARE @CompanyStr    NVARCHAR(MAX) = COALESCE(NULLIF(LTRIM(RTRIM(@CompanyCodes)), ''), NULLIF(LTRIM(RTRIM(@Company)), ''), NULLIF(LTRIM(RTRIM(@CompanyCode)), ''));
+    DECLARE @BranchStr     NVARCHAR(MAX) = COALESCE(NULLIF(LTRIM(RTRIM(@BranchCodes)), ''), NULLIF(LTRIM(RTRIM(@Branch)), ''), NULLIF(LTRIM(RTRIM(@BranchCode)), ''));
+    DECLARE @DeptStr       NVARCHAR(MAX) = COALESCE(NULLIF(LTRIM(RTRIM(@DepartmentCodes)), ''), NULLIF(LTRIM(RTRIM(@Department)), ''), NULLIF(LTRIM(RTRIM(@DepartmentCode)), ''));
+    DECLARE @EmpStr        NVARCHAR(MAX) = COALESCE(NULLIF(LTRIM(RTRIM(@EmployeeIds)), ''), NULLIF(LTRIM(RTRIM(@Employee)), ''), NULLIF(LTRIM(RTRIM(@EmployeeId)), ''));
+
     SET @LeaveFormat     = NULLIF(LTRIM(RTRIM(@LeaveFormat)), '');
     SET @LeaveStatus     = NULLIF(LTRIM(RTRIM(@LeaveStatus)), '');
     SET @ReportFormat    = NULLIF(LTRIM(RTRIM(@ReportFormat)), '');
@@ -57,6 +67,7 @@ BEGIN
     IF @ReportFormat = 'Dashboard'
         SET @ReportType = 'Dashboard';
 
+    -- Year and Date Normalization
     IF @Year IS NULL OR @Year <= 1900
     BEGIN
         IF @DateFrom IS NOT NULL AND @DateFrom <> '1900-01-01'
@@ -78,7 +89,12 @@ BEGIN
         IF @DateTo   = '1900-01-01' SET @DateTo   = NULL;
     END
 
-    -- 1. Table Variables for Filters (No Tempdb DDL Locking / Contention)
+    IF @Page IS NULL OR @Page < 1 SET @Page = 1;
+    IF @PageSize IS NULL OR @PageSize < 1 SET @PageSize = 10;
+
+    -- ════════════════════════════════════════════════════════════════
+    -- 1. Table Variables for Filters (No Tempdb Catalog Locks)
+    -- ════════════════════════════════════════════════════════════════
     DECLARE @CompanyFilter TABLE (Code VARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
     DECLARE @BranchFilter  TABLE (Code VARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
     DECLARE @DeptFilter    TABLE (Code VARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
@@ -86,36 +102,36 @@ BEGIN
     DECLARE @FormatFilter  TABLE (Code VARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
     DECLARE @StatusFilter  TABLE (Code VARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
 
-    IF @Company IS NOT NULL
+    IF @CompanyStr IS NOT NULL
     BEGIN
-        DECLARE @CompanyXml XML = CAST('<r><v>' + REPLACE(@Company, ',', '</v><v>') + '</v></r>' AS XML);
+        DECLARE @CompanyXml XML = CAST('<r><v>' + REPLACE(@CompanyStr, ',', '</v><v>') + '</v></r>' AS XML);
         INSERT INTO @CompanyFilter (Code)
         SELECT DISTINCT LTRIM(RTRIM(x.v.value('.', 'VARCHAR(50)')))
         FROM   @CompanyXml.nodes('/r/v') AS x(v)
         WHERE  LTRIM(RTRIM(x.v.value('.', 'VARCHAR(50)'))) <> '';
     END
 
-    IF @Branch IS NOT NULL
+    IF @BranchStr IS NOT NULL
     BEGIN
-        DECLARE @BranchXml XML = CAST('<r><v>' + REPLACE(@Branch, ',', '</v><v>') + '</v></r>' AS XML);
+        DECLARE @BranchXml XML = CAST('<r><v>' + REPLACE(@BranchStr, ',', '</v><v>') + '</v></r>' AS XML);
         INSERT INTO @BranchFilter (Code)
         SELECT DISTINCT LTRIM(RTRIM(x.v.value('.', 'VARCHAR(50)')))
         FROM   @BranchXml.nodes('/r/v') AS x(v)
         WHERE  LTRIM(RTRIM(x.v.value('.', 'VARCHAR(50)'))) <> '';
     END
 
-    IF @Department IS NOT NULL
+    IF @DeptStr IS NOT NULL
     BEGIN
-        DECLARE @DeptXml XML = CAST('<r><v>' + REPLACE(@Department, ',', '</v><v>') + '</v></r>' AS XML);
+        DECLARE @DeptXml XML = CAST('<r><v>' + REPLACE(@DeptStr, ',', '</v><v>') + '</v></r>' AS XML);
         INSERT INTO @DeptFilter (Code)
         SELECT DISTINCT LTRIM(RTRIM(x.v.value('.', 'VARCHAR(50)')))
         FROM   @DeptXml.nodes('/r/v') AS x(v)
         WHERE  LTRIM(RTRIM(x.v.value('.', 'VARCHAR(50)'))) <> '';
     END
 
-    IF @Employee IS NOT NULL
+    IF @EmpStr IS NOT NULL
     BEGIN
-        DECLARE @EmpXml XML = CAST('<r><v>' + REPLACE(@Employee, ',', '</v><v>') + '</v></r>' AS XML);
+        DECLARE @EmpXml XML = CAST('<r><v>' + REPLACE(@EmpStr, ',', '</v><v>') + '</v></r>' AS XML);
         INSERT INTO @EmpFilter (Code)
         SELECT DISTINCT LTRIM(RTRIM(x.v.value('.', 'VARCHAR(50)')))
         FROM   @EmpXml.nodes('/r/v') AS x(v)
@@ -140,7 +156,9 @@ BEGIN
         WHERE  LTRIM(RTRIM(x.v.value('.', 'VARCHAR(50)'))) <> '';
     END
 
+    -- ════════════════════════════════════════════════════════════════
     -- 2. Access Scope Flags
+    -- ════════════════════════════════════════════════════════════════
     DECLARE @IsAdmin      BIT = CASE WHEN @AccessCodeId = '0001'           THEN 1 ELSE 0 END;
     DECLARE @IsTeamLeader BIT = CASE WHEN @AccessCodeId IN ('0002','0003') THEN 1 ELSE 0 END;
     DECLARE @IsUser       BIT = CASE WHEN @AccessCodeId = '0005'           THEN 1 ELSE 0 END;
@@ -148,7 +166,9 @@ BEGIN
     IF @AccessCodeId IS NULL OR @LoginEmployeeId IS NULL
         SET @IsAdmin = 1;
 
-    -- 3. Filtered Employees Table with Primary Key Clustered
+    -- ════════════════════════════════════════════════════════════════
+    -- 3. Filtered Active Employees
+    -- ════════════════════════════════════════════════════════════════
     CREATE TABLE #ActiveEmployees (
         EmployeeId       VARCHAR(50)   COLLATE DATABASE_DEFAULT PRIMARY KEY CLUSTERED,
         EmployeeName     NVARCHAR(200) COLLATE DATABASE_DEFAULT,
@@ -158,6 +178,7 @@ BEGIN
         CompanyCode      VARCHAR(50)   COLLATE DATABASE_DEFAULT,
         CompanyName      NVARCHAR(200) COLLATE DATABASE_DEFAULT,
         BranchCode       VARCHAR(50)   COLLATE DATABASE_DEFAULT,
+        BranchName       NVARCHAR(200) COLLATE DATABASE_DEFAULT,
         JoiningDate      DATE,
         AnniversaryStart DATE,
         AnniversaryEnd   DATE,
@@ -184,6 +205,7 @@ BEGIN
         ISNULL(oi.CompanyCode, ''),
         ISNULL(comp.CompanyName, 'Data Path'),
         ISNULL(oi.BranchCode, ''),
+        ISNULL(br.BranchName, 'Main Branch'),
         CASE WHEN oi.JoiningDate IS NOT NULL AND oi.JoiningDate <> '1900-01-01' THEN CONVERT(DATE, oi.JoiningDate) ELSE NULL END,
         CASE WHEN oi.JoiningDate IS NOT NULL AND oi.JoiningDate <> '1900-01-01'
              THEN DATEADD(YEAR, @Year - YEAR(CONVERT(DATE, oi.JoiningDate)), CONVERT(DATE, oi.JoiningDate))
@@ -199,6 +221,7 @@ BEGIN
     LEFT JOIN HRM_Def_Department   dep  WITH (NOLOCK) ON dep.DepartmentCode = oi.DepartmentCode AND oi.DepartmentCode <> ''
     LEFT JOIN HRM_Def_Designation  d    WITH (NOLOCK) ON d.DesignationCode  = oi.DesignationCode AND oi.DesignationCode <> ''
     LEFT JOIN Core_Company         comp WITH (NOLOCK) ON comp.CompanyCode   = oi.CompanyCode AND oi.CompanyCode <> ''
+    LEFT JOIN Core_Branch          br   WITH (NOLOCK) ON br.BranchCode       = oi.BranchCode AND oi.BranchCode <> ''
     WHERE (oi.EmployeeStatus = '01' OR oi.EmployeeStatus = 'Active' OR oi.EmployeeStatus = '1' OR oi.EmployeeStatus = '' OR oi.EmployeeStatus IS NULL)
       AND (oi.EmployeeId IS NOT NULL AND oi.EmployeeId <> '')
       AND (NOT EXISTS (SELECT 1 FROM @CompanyFilter) OR (oi.CompanyCode <> '' AND oi.CompanyCode IN (SELECT Code FROM @CompanyFilter)))
@@ -223,7 +246,9 @@ BEGIN
             OR ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(e.FirstName,'') + ' ' + ISNULL(e.LastName,''))),''), e.EmployeeId) LIKE '%' + @Search + '%'
       );
 
-    -- 4. Unified Leaves Table with Clustered Primary Key (on LeaveAppEntryCode / AutoId)
+    -- ════════════════════════════════════════════════════════════════
+    -- 4. Unified Filtered Leaves Table
+    -- ════════════════════════════════════════════════════════════════
     CREATE TABLE #FilteredLeaves (
         LeaveAppEntryCode   VARCHAR(50)   COLLATE DATABASE_DEFAULT NOT NULL PRIMARY KEY CLUSTERED,
         LeaveAppEntryId     VARCHAR(50)   COLLATE DATABASE_DEFAULT,
@@ -282,7 +307,7 @@ BEGIN
         l.LeaveTypeId AS RawLeaveTypeCode,
         l.StartDate,
         l.EndDate,
-        ISNULL(l.NoOfDay, 0) AS NoOfDay,
+        CAST(ISNULL(l.NoOfDay, 0) AS DECIMAL(10,2)) AS NoOfDay,
         l.ModifyDate,
         ISNULL(l.ConfirmationRemarks, '') AS ConfirmationRemarks,
         ISNULL(l.HodapprovalStatus, '') AS HODApprovalStatus,
@@ -320,14 +345,55 @@ BEGIN
     LEFT  JOIN HRM_Employee hod           WITH (NOLOCK) ON l.Hod = hod.EmployeeId AND l.Hod <> ''
     LEFT  JOIN HRM_Employee sup           WITH (NOLOCK) ON l.BossEmpAutoId = sup.EmployeeId AND l.BossEmpAutoId <> ''
     LEFT  JOIN HRM_ATD_LeaveType type     WITH (NOLOCK) ON l.LeaveTypeId = type.LeaveTypeCode
-    WHERE (@DateFrom IS NULL OR l.StartDate >= @DateFrom)
-      AND (@DateTo   IS NULL OR l.EndDate   <= @DateTo)
-      AND (NOT EXISTS (SELECT 1 FROM @FormatFilter) OR l.ApplyLeaveFormat IN (SELECT Code FROM @FormatFilter));
+    WHERE (
+        @ReportType = 'Dashboard'
+        AND l.StartDate <= @DateTo
+        AND l.EndDate   >= @DateFrom
+    ) OR (
+        @ReportType = 'Report'
+        AND (@DateFrom IS NULL OR l.StartDate >= @DateFrom)
+        AND (@DateTo   IS NULL OR l.EndDate   <= @DateTo)
+    )
+    AND (NOT EXISTS (SELECT 1 FROM @FormatFilter) OR l.ApplyLeaveFormat IN (SELECT Code FROM @FormatFilter));
 
-    -- 5. Branching by Mode: Dashboard vs. Report
+    -- ════════════════════════════════════════════════════════════════
+    -- 5. Strict Sequence Leave Types Definition
+    -- ════════════════════════════════════════════════════════════════
+    CREATE TABLE #LeaveTypes (
+        LeaveTypeCode VARCHAR(50) COLLATE DATABASE_DEFAULT NOT NULL PRIMARY KEY CLUSTERED,
+        ShortName     VARCHAR(20) COLLATE DATABASE_DEFAULT,
+        NoOfDay       DECIMAL(10,2),
+        SortOrder     INT NOT NULL
+    );
+
+    INSERT INTO #LeaveTypes (LeaveTypeCode, ShortName, NoOfDay, SortOrder)
+    SELECT
+        LeaveTypeCode,
+        ISNULL(NULLIF(LTRIM(RTRIM(ShortName)),''), LeaveTypeCode),
+        ISNULL(NoOfDay, 0),
+        CASE
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'CL'   OR LeaveTypeCode = '1' THEN 1
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'SL'   OR LeaveTypeCode = '2' THEN 2
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'UL'   OR LeaveTypeCode = '3' THEN 3
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'ML'   OR LeaveTypeCode = '4' THEN 4
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'PL'   OR LeaveTypeCode = '5' THEN 5
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'MARL' OR LeaveTypeCode = '6' THEN 6
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'HL'   OR LeaveTypeCode = '7' THEN 7
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'UMRL' OR LeaveTypeCode = '8' THEN 8
+            ELSE 99
+        END
+    FROM HRM_ATD_LeaveType WITH (NOLOCK);
+
+    -- ════════════════════════════════════════════════════════════════
+    -- OUTPUT DISPATCHER: [DASHBOARD] vs [REPORT]
+    -- ════════════════════════════════════════════════════════════════
+
+    -- ─────────────────────────────────────────────────────────────────
+    -- [BRANCH A] Dashboard & Leave Summary Report Mode: Returns 3 Result Sets
+    -- ─────────────────────────────────────────────────────────────────
     IF @ReportType = 'Dashboard'
     BEGIN
-        -- RS1: Summary Cards
+        -- [RS1] Summary Cards
         SELECT
             COUNT(*) AS TotalApplied,
             ISNULL(SUM(CASE WHEN NormalizedStatus = 'Approved' THEN 1 ELSE 0 END), 0) AS Approved,
@@ -335,44 +401,19 @@ BEGIN
             ISNULL(SUM(CASE WHEN NormalizedStatus = 'Pending'  THEN 1 ELSE 0 END), 0) AS Pending
         FROM #FilteredLeaves;
 
-        -- RS2: Leave Types (Strict sequence: CL, SL, UL, ML, PL, MarL, HL, UmrL)
-        CREATE TABLE #LeaveTypes (
-            LeaveTypeCode VARCHAR(50) COLLATE DATABASE_DEFAULT NOT NULL PRIMARY KEY CLUSTERED,
-            ShortName     VARCHAR(20) COLLATE DATABASE_DEFAULT,
-            NoOfDay       DECIMAL(10,2),
-            SortOrder     INT NOT NULL
-        );
-
-        INSERT INTO #LeaveTypes (LeaveTypeCode, ShortName, NoOfDay, SortOrder)
-        SELECT
-            LeaveTypeCode,
-            ISNULL(NULLIF(LTRIM(RTRIM(ShortName)),''), LeaveTypeCode),
-            ISNULL(NoOfDay, 0),
-            CASE
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'CL'   OR LeaveTypeCode = '1' THEN 1
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'SL'   OR LeaveTypeCode = '2' THEN 2
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'UL'   OR LeaveTypeCode = '3' THEN 3
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'ML'   OR LeaveTypeCode = '4' THEN 4
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'PL'   OR LeaveTypeCode = '5' THEN 5
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'MARL' OR LeaveTypeCode = '6' THEN 6
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'HL'   OR LeaveTypeCode = '7' THEN 7
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(ShortName, '')))) = 'UMRL' OR LeaveTypeCode = '8' THEN 8
-                ELSE 99
-            END
-        FROM HRM_ATD_LeaveType WITH (NOLOCK);
-
+        -- [RS2] Leave Types
         SELECT LeaveTypeCode, ShortName, NoOfDay
         FROM #LeaveTypes
         ORDER BY SortOrder, ShortName;
 
-        -- RS3: Paged Employees with Granted, Availed, Balanced
-        IF @Page IS NULL OR @Page < 1 SET @Page = 1;
-        IF @PageSize IS NULL OR @PageSize < 1 SET @PageSize = 10;
-
+        -- [RS3] Paged Employees & Leave Balances
         CREATE TABLE #PagedEmployees (
             EmployeeId       VARCHAR(50)   COLLATE DATABASE_DEFAULT PRIMARY KEY CLUSTERED,
             EmployeeName     NVARCHAR(200) COLLATE DATABASE_DEFAULT,
             Designation      NVARCHAR(100) COLLATE DATABASE_DEFAULT,
+            DepartmentName   NVARCHAR(200) COLLATE DATABASE_DEFAULT,
+            BranchName       NVARCHAR(200) COLLATE DATABASE_DEFAULT,
+            CompanyName      NVARCHAR(200) COLLATE DATABASE_DEFAULT,
             JoiningDate      DATE,
             AnniversaryStart DATE,
             AnniversaryEnd   DATE,
@@ -383,7 +424,7 @@ BEGIN
 
         ;WITH EmpPaged AS (
             SELECT
-                EmployeeId, EmployeeName, Designation, JoiningDate,
+                EmployeeId, EmployeeName, Designation, DepartmentName, BranchName, CompanyName, JoiningDate,
                 AnniversaryStart, AnniversaryEnd, RemainingMonths,
                 ROW_NUMBER() OVER (ORDER BY EmployeeName ASC) AS RowNum,
                 COUNT(*)     OVER ()                          AS TotalCount
@@ -394,7 +435,7 @@ BEGIN
         FROM EmpPaged
         WHERE RowNum BETWEEN (@Page - 1) * @PageSize + 1 AND @Page * @PageSize;
 
-        -- Availed only for Paged Employees
+        -- Precalculate Availed Days for Paged Employees Only
         CREATE TABLE #Availed (
             EmployeeId    VARCHAR(50) COLLATE DATABASE_DEFAULT NOT NULL,
             LeaveTypeCode VARCHAR(50) COLLATE DATABASE_DEFAULT NOT NULL,
@@ -404,7 +445,7 @@ BEGIN
 
         INSERT INTO #Availed
         SELECT
-            la.EmployeeID,
+            la.EmployeeId,
             lt.LeaveTypeCode,
             SUM(
                 CASE
@@ -416,24 +457,19 @@ BEGIN
                 END
             ) AS AvailedDays
         FROM #PagedEmployees emp
-        JOIN HRM_LeaveApplicationEntry la WITH (NOLOCK)
-            ON la.EmployeeID = emp.EmployeeId
-           AND la.StartDate <= @DateTo AND la.EndDate >= @DateFrom
-        JOIN #LeaveTypes lt
-            ON lt.LeaveTypeCode = la.LeaveTypeId
-        WHERE (
-            LOWER(ISNULL(la.IsApproved,''))          IN ('y','approved')
-            OR LOWER(ISNULL(la.HodapprovalStatus,'')) IN ('y','approved')
-            OR LOWER(ISNULL(la.HrapprovalStatus,''))  IN ('y','approved')
-        )
-        GROUP BY
-            la.EmployeeID,
-            lt.LeaveTypeCode;
+        JOIN #FilteredLeaves la ON la.EmployeeId = emp.EmployeeId
+        JOIN #LeaveTypes lt     ON lt.LeaveTypeCode = la.RawLeaveTypeCode
+        WHERE la.NormalizedStatus = 'Approved'
+        GROUP BY la.EmployeeId, lt.LeaveTypeCode;
 
+        -- Grid Dataset Output
         SELECT
             p.EmployeeId,
             p.EmployeeName                              AS [Name],
             p.Designation,
+            p.DepartmentName,
+            p.BranchName,
+            p.CompanyName,
             ISNULL(CONVERT(VARCHAR(12), p.JoiningDate, 103), '')      AS JoiningDate,
             ISNULL(CONVERT(VARCHAR(12), p.AnniversaryStart, 103), '') AS AnniversaryStart,
             ISNULL(CONVERT(VARCHAR(12), p.AnniversaryEnd, 103), '')   AS AnniversaryEnd,
@@ -455,13 +491,15 @@ BEGIN
         ORDER BY p.RowNum, lt.SortOrder, lt.ShortName
         OPTION (RECOMPILE);
 
-        DROP TABLE #LeaveTypes;
         DROP TABLE #PagedEmployees;
         DROP TABLE #Availed;
     END
+
+    -- ─────────────────────────────────────────────────────────────────
+    -- [BRANCH B] Report Mode: Returns Single Detailed Result Set for Leave Report
+    -- ─────────────────────────────────────────────────────────────────
     ELSE
     BEGIN
-        -- Report Mode: Returns Single Detailed Result Set for Leave Report
         SELECT 
             ISNULL(fl.CompanyCode, '') AS CompanyCode,
             ISNULL(fl.CompanyName, 'Data Path') AS CompanyName,
@@ -490,7 +528,6 @@ BEGIN
             fl.ShortLeaveTime,
             ISNULL(fl.IsApproved, '') AS IsApproved,
             ISNULL(fl.FirstOrSecondHalf, '') AS FirstOrSecondHalf,
-            -- Window function summary counts across the entire filtered dataset:
             COUNT(fl.LeaveAppEntryCode) OVER() AS TotalLeaves,
             ISNULL(SUM(CASE WHEN fl.NormalizedStatus = 'Pending'  THEN 1 ELSE 0 END) OVER(), 0) AS PendingLeaves,
             ISNULL(SUM(CASE WHEN fl.NormalizedStatus = 'Approved' THEN 1 ELSE 0 END) OVER(), 0) AS ApprovedLeaves,
@@ -508,6 +545,6 @@ BEGIN
     -- Cleanup
     DROP TABLE #ActiveEmployees;
     DROP TABLE #FilteredLeaves;
-END;";
-    }
-}
+    DROP TABLE #LeaveTypes;
+END;
+GO
