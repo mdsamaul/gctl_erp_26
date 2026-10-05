@@ -1,8 +1,12 @@
-﻿using GCTL.Core.Data;
+using GCTL.Core.Data;
 using GCTL.Core.ViewModels.Common;
 using GCTL.Core.ViewModels.HrmAtdShifts;
 using GCTL.Data.Models;
 using Microsoft.EntityFrameworkCore;
+using Dapper;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using System.Data;
 
 namespace GCTL.Service.HrmAtdShifts
 {
@@ -11,13 +15,15 @@ namespace GCTL.Service.HrmAtdShifts
         private readonly IRepository<HrmAtdShift> hRmAtdShiftRepository;
         private readonly IRepository<HrmDefShiftType> shiftService;
         private readonly IRepository<CoreAccessCode> accessCodeRepository;
+        private readonly IConfiguration _configuration;
 
-        public HrmAtdShiftService(IRepository<HrmAtdShift> hRmAtdShiftRepository, IRepository<HrmDefShiftType> shiftService, IRepository<CoreAccessCode> accessCodeRepository)
+        public HrmAtdShiftService(IRepository<HrmAtdShift> hRmAtdShiftRepository, IRepository<HrmDefShiftType> shiftService, IRepository<CoreAccessCode> accessCodeRepository, IConfiguration configuration)
     : base(hRmAtdShiftRepository)
         {
             this.hRmAtdShiftRepository = hRmAtdShiftRepository;
             this.shiftService = shiftService;
             this.accessCodeRepository = accessCodeRepository;
+            this._configuration = configuration;
         }
 
 
@@ -50,7 +56,20 @@ namespace GCTL.Service.HrmAtdShifts
                 Lmac = entity.Lmac,
                 LunchInTime = entity.LunchInTime,
                 LunchOutTime = entity.LunchOutTime,
-                LunchBreakHour = entity.LunchBreakHour
+                LunchBreakHour = entity.LunchBreakHour,
+                EarlyLeaveTime = entity.EarlyLeaveTime,
+                IsCrossMidnight = entity.IsCrossMidnight ?? false,
+                CompanyIds = entity.CompanyIds,
+                BranchIds = entity.BranchIds,
+                DepartmentIds = entity.DepartmentIds,
+                EmployeeIds = entity.EmployeeIds,
+                CompanyIdsList = !string.IsNullOrEmpty(entity.CompanyIds) ? entity.CompanyIds.Split(',').ToList() : new List<string>(),
+                BranchIdsList = !string.IsNullOrEmpty(entity.BranchIds) ? entity.BranchIds.Split(',').ToList() : new List<string>(),
+                DepartmentIdsList = !string.IsNullOrEmpty(entity.DepartmentIds) ? entity.DepartmentIds.Split(',').ToList() : new List<string>(),
+                EmployeeIdsList = !string.IsNullOrEmpty(entity.EmployeeIds) ? entity.EmployeeIds.Split(',').ToList() : new List<string>(),
+                OvertimeRuleID = entity.OvertimeRuleId,
+                IsActive = entity.IsActive ?? false,
+                IsActiveStatus = (entity.IsActive == true) ? "Active" : "Inactive"
             };
         }
         public async Task<List<HrmAtdShiftSetupViewModel>> GetAllAsync()
@@ -78,9 +97,42 @@ namespace GCTL.Service.HrmAtdShifts
                 Lmac = entityVM.Lmac,
                 LunchInTime = entityVM.LunchInTime,
                 LunchOutTime = entityVM.LunchOutTime,
-                LunchBreakHour = entityVM.LunchBreakHour
+                LunchBreakHour = entityVM.LunchBreakHour,
+                EarlyLeaveTime = entityVM.EarlyLeaveTime,
+                IsCrossMidnight = entityVM.IsCrossMidnight ?? false,
+                CompanyIds = entityVM.CompanyIds,
+                BranchIds = entityVM.BranchIds,
+                DepartmentIds = entityVM.DepartmentIds,
+                EmployeeIds = entityVM.EmployeeIds,
+                OvertimeRuleID = entityVM.OvertimeRuleId,
+                IsActive = entityVM.IsActive ?? false,
+                IsActiveStatus = (entityVM.IsActive == true) ? "Active" : "Inactive"
 
             }).ToList();
+        }
+
+        public async Task<dynamic> GetDashboardCountAsync()
+        {
+            using var connection = new SqlConnection(_configuration.GetConnectionString("ApplicationDbConnection"));
+            var result = await connection.QueryFirstOrDefaultAsync<dynamic>("SP_HrmAtdShift_DashboardCount", commandType: CommandType.StoredProcedure);
+            return result;
+        }
+
+        public async Task<List<HrmAtdShiftSetupViewModel>> GetGridDataAsync(string searchText, string shiftType, string companyId, string branchId, string departmentId, string status)
+        {
+            using var connection = new SqlConnection(_configuration.GetConnectionString("ApplicationDbConnection"));
+            var parameters = new DynamicParameters();
+            parameters.Add("@SearchText", searchText ?? "");
+            parameters.Add("@ShiftType", shiftType ?? "");
+            parameters.Add("@CompanyId", companyId ?? "");
+            parameters.Add("@BranchId", branchId ?? "");
+            parameters.Add("@DepartmentId", departmentId ?? "");
+            parameters.Add("@Status", status ?? "");
+            parameters.Add("@Offset", 0);
+            parameters.Add("@PageSize", 100000);
+
+            var result = await connection.QueryAsync<HrmAtdShiftSetupViewModel>("SP_HrmAtdShift_GetList", parameters, commandType: CommandType.StoredProcedure);
+            return result.ToList();
         }
 
 
@@ -119,7 +171,15 @@ namespace GCTL.Service.HrmAtdShifts
                     Ldate = DateTime.Now,
                     LunchInTime = entityVM.LunchInTime,
                     LunchOutTime = entityVM.LunchOutTime,
-                    LunchBreakHour = entityVM.LunchBreakHour
+                    LunchBreakHour = entityVM.LunchBreakHour,
+                    EarlyLeaveTime = entityVM.EarlyLeaveTime ?? "",
+                    IsCrossMidnight = entityVM.IsCrossMidnight,
+                    CompanyIds = entityVM.CompanyIdsList != null ? string.Join(",", entityVM.CompanyIdsList) : "",
+                    BranchIds = entityVM.BranchIdsList != null ? string.Join(",", entityVM.BranchIdsList) : "",
+                    DepartmentIds = entityVM.DepartmentIdsList != null ? string.Join(",", entityVM.DepartmentIdsList) : "",
+                    EmployeeIds = entityVM.EmployeeIdsList != null ? string.Join(",", entityVM.EmployeeIdsList) : "",
+                    OvertimeRuleId = entityVM.OvertimeRuleID ?? "",
+                    IsActive = entityVM.IsActiveStatus == "Active"
                 };
 
 
@@ -171,6 +231,14 @@ namespace GCTL.Service.HrmAtdShifts
                 entity.LunchInTime = entityVM.LunchInTime;
                 entity.LunchOutTime = entityVM.LunchOutTime;
                 entity.LunchBreakHour = entityVM.LunchBreakHour;
+                entity.EarlyLeaveTime = entityVM.EarlyLeaveTime ?? "";
+                entity.IsCrossMidnight = entityVM.IsCrossMidnight;
+                entity.CompanyIds = entityVM.CompanyIdsList != null ? string.Join(",", entityVM.CompanyIdsList) : "";
+                entity.BranchIds = entityVM.BranchIdsList != null ? string.Join(",", entityVM.BranchIdsList) : "";
+                entity.DepartmentIds = entityVM.DepartmentIdsList != null ? string.Join(",", entityVM.DepartmentIdsList) : "";
+                entity.EmployeeIds = entityVM.EmployeeIdsList != null ? string.Join(",", entityVM.EmployeeIdsList) : "";
+                entity.OvertimeRuleId = entityVM.OvertimeRuleID ?? "";
+                entity.IsActive = entityVM.IsActiveStatus == "Active";
                 await hRmAtdShiftRepository.UpdateAsync(entity);
                 await hRmAtdShiftRepository.CommitTransactionAsync();
                 return true;

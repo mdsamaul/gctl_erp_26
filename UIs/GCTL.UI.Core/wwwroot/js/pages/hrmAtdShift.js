@@ -1,4 +1,4 @@
-﻿(function ($) {
+(function ($) {
     $.hrmAtdShift = function (options) {
         // Default options
         var settings = $.extend({
@@ -233,28 +233,60 @@
                     return markup;
                 }
             });
-
+            
+            $('.select2').select2({ width: '100%', placeholder: 'Select Options' });
         }
 
         // Load leave types list
         function loadTableData()
         {
+            var filterData = {
+                searchText: $('#hRMATDShifts-grid_filter input').val() || '', // Or use custom search input
+                shiftType: $('#fltShiftType').val() || '',
+                companyId: $('#fltCompany').val() || '',
+                branchId: $('#fltBranch').val() || '',
+                departmentId: $('#fltDepartment').val() || '',
+                status: $('#fltStatus').val() || ''
+            };
+
             $.ajax({
                 type: 'GET',
                 url: loadTableURL,
+                data: filterData,
                 success: function (data)
                 {
-                    //console.log(data);
                     $(settings.gridContainer).html(data);
                     dataTable();
-
                 },
                 error: function ()
                 {
                     toastr.error('Failed Load Data.');
                 }
             });
+            loadDashboardCount();
         }
+
+        function loadDashboardCount() {
+            $.ajax({
+                type: 'GET',
+                url: baseControllerNameUrl + '/GetDashboardCount',
+                success: function (data) {
+                    if (data) {
+                        $('#dashTotalShifts').text(data.TotalShifts || 0);
+                        $('#dashDayShifts').text(data.DayShifts || 0);
+                        $('#dashNightShifts').text(data.NightShifts || 0);
+                        $('#dashWithOvertime').text(data.WithOvertimeRules || 0);
+                        $('#dashCrossMidnight').text(data.CrossMidnight || 0);
+                        $('#dashActiveShifts').text(data.Active || 0);
+                        $('#dashInactiveShifts').text(data.Inactive || 0);
+                    }
+                }
+            });
+        }
+
+        $(document).on('click', '#btnFilterSearch', function () {
+            loadTableData();
+        });
 
         //$(document).ready(function () {
         //    $('#hRMATDShifts-grid').DataTable();
@@ -342,6 +374,7 @@
             var lunchIn = $(result).find("#LunchInDateTime").val();
             var lunchOut = $(result).find("#LunchOutDateTime").val();
             var lunchBreak = $(result).find("#LunchBreakTimeHour").val();
+            var earlyLeave = $(result).find("#EarlyLeaveTime").val();
 
             initializeTimePicker("#inTimeInput", "#inDateTimeInput", startTime);
             initializeTimePicker("#outTimeInput", "#outDateTimeInput", endTime);
@@ -349,6 +382,7 @@
             initializeTimePicker("#AbsentTimeInput", "#AbsentDateTimeInput", absentTime);
             initializeTimePicker("#LunchInTime", "#LunchInDateTime", lunchIn);
             initializeTimePicker("#LunchOutTime", "#LunchOutDateTime", lunchOut);
+            initializeTimePicker("#EarlyLeaveTimeInput", "#EarlyLeaveTime", earlyLeave);
             //initializeTimePicker("#LunchBreakHour", "#LunchBreakTimeHour", lunchBreak);
             $("#WefDate").val(wefDate);
         }
@@ -421,6 +455,7 @@
            
             $('#WefDate').val(''); 
             $('#Remarks').val('');
+            $('.select2').val(null).trigger('change');
             $('#LdateModifyHide').hide();
             $(settings.saveSelector).html('<i class="fas fa-save"></i> Save');
             $('.text-danger').text('');
@@ -434,6 +469,7 @@
             initializeTimePicker("#AbsentTimeInput", "#AbsentDateTimeInput");
             initializeTimePicker("#LunchInTime", "#LunchInDateTime");
             initializeTimePicker("#LunchOutTime", "#LunchOutDateTime");
+            initializeTimePicker("#EarlyLeaveTimeInput", "#EarlyLeaveTime");
             //initializeTimePicker("#LunchBreakHour", "#LunchBreakTimeHour");
 
         }
@@ -502,9 +538,9 @@
             initializeTimePicker("#outTimeInput", "#outDateTimeInput");
             initializeTimePicker("#lateTimeInput", "#lateDateTimeInput");
             initializeTimePicker("#AbsentTimeInput", "#AbsentDateTimeInput");
-            initializeTimePicker("#AbsentTimeInput", "#AbsentDateTimeInput");
             initializeTimePicker("#LunchInTime", "#LunchInDateTime");
             initializeTimePicker("#LunchOutTime", "#LunchOutDateTime");
+            initializeTimePicker("#EarlyLeaveTimeInput", "#EarlyLeaveTime");
         })
     }
   

@@ -1,4 +1,4 @@
-﻿
+
 (function ($) {
     $.patientTypes = function (options) {
         var commonName = $.extend({
@@ -422,7 +422,11 @@
         }
 
         function initCompanyMultiselect() {
-            $companyInput.on('click', function () {
+            $companyInput.on('click', function (e) {
+                if ($(this).prop('disabled')) {
+                    e.preventDefault();
+                    return;
+                }
                 $companyDropdown.toggleClass('show');
                 $dropdown.removeClass('show');
                 $employeeDropdown.removeClass('show');
@@ -916,40 +920,9 @@
             var table = $('#advancePayTable').DataTable({
                 "processing": true,
                 "serverSide": true,
-                "responsive": true,
-                "pageLength": 10,
-                ordering: true,
-                columnDefs: [
-                    { orderable: false, targets: [0] },
-                    {
-                        targets: '_all',
-                        className: 'text-center align-middle'
-                    }
-                ],
-                "scrollY": "600px",
+                "scrollY": "350px",
                 "scrollCollapse": true,
-                "lengthMenu": [[5, 10, 25, 50, 100,1000], [5, 10, 25, 50, 100, 1000]],
-                pagingType: 'full_numbers',
-                "language": {
-                    "processing": "Processing...",
-                    "lengthMenu": "Show _MENU_ entries",
-                    "zeroRecords": "No matching records found",
-                    "info": "Showing _START_ to _END_ of _TOTAL_ entries",
-                    "infoEmpty": "Showing 0 to 0 of 0 entries",
-                    "infoFiltered": "(filtered from _MAX_ total entries)",
-                    "search": "Search:",
-                   
-                    language: {
-                        paginate: {
-                            first: 'First',
-                            previous: 'Previous',
-                            next: 'Next',
-                            last: 'Last'
-                        }
-                    },
-                    "emptyTable": "No data available in table",
-                    "loadingRecords": "Loading..."
-                },
+                "scrollX": true,
                 "ajax": {
                     "url": GetAdvancePayDataUrl,
                     "type": "POST",
@@ -1008,19 +981,13 @@
                 "columns": [
                     {
                         "data": null,
-                        "title": `Select <br /><input type='checkbox' id='selectAllCheckbox'>`,
                         "render": function (data, type, row, meta) {
                             return `<input type="checkbox" class="row-checkbox" data-id="${row.advancePayCode}">`;
-                        },
-                        "orderable": false,
-                        "width": "5%",
-                        "className":"text-center"
+                        }
                     },
                    
                     {
                         "data": "advancePayId",
-                        "title": "ID",
-                        "width": "5%",
                         "render": function (data, type, row, meta) {
                             if (!data) return "";
                             return `<a href="#" class="advance-id-link" data-advancepayid=${data}>${data}</a>`
@@ -1028,33 +995,30 @@
                     },
                     {
                         "data": "employeeID",
-                        "title": "Employee ID",                        
                     },
                     {
                         "data": "fullName",
-                        "title": "Name",
-                        "width": "15%",
                         "render": function (data) {
                             return data || '';
                         }
                     }, {
                         "data": "designationName",
-                        "title": "Designation",
-                        "width": "12%",
                         "render": function (data) {
                             return data || '';
                         }
                     },
                     {
                         "data": "loanID",
-                        "title": "Loan ID",
                     },
                     
-                   
+                    {
+                        "data": "noOfPaymentInstallment",
+                        "render": function (data) {
+                            return data || '';
+                        }
+                    },                   
                     {
                         "data": "advanceAmount",
-                        "title": "Loan Amount",
-                        "width": "10%",
                         "render": function (data) {
                             const amount = parseFloat(data) || 0;
 
@@ -1065,18 +1029,8 @@
                             
                         }
                     },
-                     {
-                        "data": "noOfPaymentInstallment",
-                        "title": "No. Of Inst(s)",
-                        "width": "8%",
-                        "render": function (data) {
-                            return data || '';
-                        }
-                    },                   
                     {
                         "data": "monthlyDeduction",
-                        "title": "Monthly Deduction",
-                        "width": "10%",
                         "render": function (data) {
                             if (data == null || data === '') return '';
                             const amount = parseFloat(data) || 0;
@@ -1088,29 +1042,75 @@
                     },
                     {
                         "data": "salaryMonth",
-                        "title": "Salary Month",
-                        "width": "8%",
                         "render": function (data) {
                             return data || '';
                         }
                     },
                     {
                         "data": "salaryYear",
-                        "title": "Salary Year",
-                        "width": "8%",
                         "render": function (data) {
                             return data || '';
                         }
                     }
                 ],
-                "order": [[1, "desc"]],
+                "order": [[1, 'desc']],
+                "paging": true,
+                "searching": true,
+                "pageLength": 10,
+                "lengthMenu": [[10, 25, 50, 100, 1000, -1], [10, 25, 50, 100, 1000, "All"]],
+                "lengthChange": true,
+                "ordering": true,
+                "info": true,
+                "autoWidth": false,
+                "responsive": false, 
+                "fixedHeader": true,
+                "language": {
+                    search: "🔍 Search:",
+                    lengthMenu: "Show _MENU_ entries",
+                    searchPlaceholder: "Search here.......",
+                    info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                    paginate: {
+                        first: "First",
+                        previous: "Prev",
+                        next: "Next",
+                        last: "Last"
+                    },
+                    emptyTable: "No data available"
+                },
+                columnDefs: [
+                    { targets: 'no-sort', orderable: false },
+                    { "width": "60px", "targets": 0 },
+                    { "width": "100px", "targets": 1 },
+                    { "width": "100px", "targets": 2 },
+                    { "width": "150px", "targets": 3 },
+                    { "width": "120px", "targets": 4 },
+                    { "width": "100px", "targets": 5 },
+                    { "width": "80px", "targets": 6 },
+                    { "width": "100px", "targets": 7 },
+                    { "width": "120px", "targets": 8 },
+                    { "width": "80px", "targets": 9 },
+                    { "width": "80px", "targets": 10 }
+                ],
                 "drawCallback": function (settings) {
                     $('[title]').tooltip();
+                    $('#advancePayTable').DataTable().columns.adjust();
                 },
                 "initComplete": function () {
-                    $('#advancePayTable_filter input[type="search"]').attr('placeholder', 'Search Here..');
-                }
+                    $('.dataTables_filter input').css({
+                        'width': '250px',
+                        'padding': '6px 12px',
+                        'border': '1px solid #ddd',
+                        'border-radius': '4px'
+                    });
+                    
+                    $(window).resize(function () {
+                        $('#advancePayTable').DataTable().columns.adjust();
+                    });
 
+                    setTimeout(function () {
+                        $('#advancePayTable').DataTable().columns.adjust();
+                    }, 100);
+                }
             });
 
             return table;

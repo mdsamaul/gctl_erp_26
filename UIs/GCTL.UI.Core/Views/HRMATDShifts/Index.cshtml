@@ -1,147 +1,1902 @@
-﻿ @model GCTL.UI.Core.ViewModels.HrmAtdShifts.HrmAtdShiftPageViewModel
- 
+@model GCTL.UI.Core.ViewModels.HrmAtdShifts.HrmAtdShiftPageViewModel
 @{
-
-    Model.PageTitle = "Shift Information";
-    // ViewBag.Title = "Shift Information";
-    Model.Breadcrumb = "Shift Information";
+    ViewBag.Title = "Shift Setup | HR & Payroll";
+    var companies = ViewBag.CompanyList ?? new List<object>();
+    var branches = ViewBag.BranchList ?? new List<object>();
+    var depts = ViewBag.DepartmentList ?? new List<object>();
+    var emps = ViewBag.EmployeeList ?? new List<object>();
+    var shiftTypes = ViewBag.ShiftTypeList ?? new List<object>();
+    var otRules = ViewBag.OvertimeRuleList ?? new List<object>();
 }
+
+@Html.AntiForgeryToken()
+
 <style>
-    .card {
-        height: auto !important;
+/* ===== THEME TOKENS ===== */
+:root {
+    --pri: #1d4ed8;
+    --pri-d: #1e3a8a;
+    --pri-l: #eaf0ff;
+    --bg: #f3f5f9;
+    --card: #fff;
+    --bd: #dde2ec;
+    --tx: #1f2937;
+    --mu: #6b7280;
+    --ok: #15803d;
+    --okb: #e3f6ea;
+    --no: #b91c1c;
+    --nob: #fde8e8;
+    --wa: #b45309;
+    --wab: #fff3dc;
+    --r: 10px;
+    --tpbg: #fff8dc;
+}
+
+.shift-app * { box-sizing: border-box; }
+.shift-app {
+    color: var(--tx);
+    font-family: "Segoe UI", Inter, Roboto, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.wrap {
+    /* max-width: 1500px;
+    margin: 0 auto; */
+    padding: 10px 15px 30px;
+}
+
+.crumb {
+    font-size: 12px;
+    color: var(--mu);
+    margin-bottom: 4px;
+}
+
+.top {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 4px 0 16px;
+}
+
+.top h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--pri-d);
+    flex: 1;
+    min-width: 160px;
+}
+
+.btn-custom {
+    border: 1px solid var(--bd);
+    background: #fff;
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-weight: 600;
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 13.5px;
+    transition: all 0.15s ease;
+    text-decoration: none !important;
+}
+
+.btn-custom:hover {
+    border-color: var(--pri);
+    color: var(--pri);
+}
+
+.btn-custom.p {
+    background: var(--pri);
+    border-color: var(--pri);
+    color: #fff !important;
+}
+
+.btn-custom.p:hover {
+    background: var(--pri-d);
+    border-color: var(--pri-d);
+    color: #fff !important;
+}
+
+.in {
+    border: 1px solid var(--bd);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: #fff;
+    width: 100%;
+    min-width: 0;
+    font-size: 13.5px;
+}
+
+.in:focus, .tp:focus-within, .ms.open > .msb {
+    outline: 2px solid #93b4ff;
+    border-color: var(--pri);
+}
+
+.card-box {
+    background: var(--card);
+    border: 1px solid var(--bd);
+    border-radius: var(--r);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, .05);
+}
+
+.gsearch { width: 240px; }
+
+.dd { position: relative; }
+.dd .menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 110%;
+    background: #fff;
+    border: 1px solid var(--bd);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+    z-index: 200;
+    min-width: 190px;
+    padding: 4px;
+}
+
+.dd.open .menu { display: block; }
+.menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: none;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.menu button:hover { background: var(--pri-l); }
+
+/* KPI CARDS */
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.kpi {
+    padding: 12px 14px;
+    border-left: 4px solid var(--c, var(--pri));
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
+}
+
+.kpi small {
+    color: var(--mu);
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.kpi b {
+    font-size: 24px;
+    color: var(--c, var(--pri-d));
+}
+
+/* FILTERS */
+.filters {
+    display: grid;
+    grid-template-columns: auto repeat(5, minmax(120px, 1fr)) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+
+.filters label {
+    font-weight: 600;
+    color: var(--mu);
+    white-space: nowrap;
+}
+
+.tb {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-end;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--bd);
+    flex-wrap: wrap;
+}
+
+.tb-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.tb-select, .tb-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    margin-bottom: 0;
+}
+
+.tb select, .tb input { width: auto; }
+.tb h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--pri-d);
+}
+
+/* TABLE */
+.shift-table-wrap { overflow-x: auto; overflow-y: hidden !important; }
+table.shift-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+table.shift-table th {
+    background: #eef2f9;
+    color: #374151;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    text-align: left;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--bd);
+    font-weight: 700;
+}
+
+th.th-sort {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+}
+th.th-sort:hover {
+    background: #e2e8f0 !important;
+    color: var(--pri-d) !important;
+}
+th.th-sort.sorted-asc,
+th.th-sort.sorted-desc {
+    background: #e3ebf7 !important;
+    color: var(--pri-d) !important;
+}
+th.th-sort .th-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    justify-content: space-between;
+}
+.sort-arrows {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-left: 5px;
+    vertical-align: middle;
+    gap: 1px;
+}
+.sort-arrows .arr-u, 
+.sort-arrows .arr-d {
+    font-style: normal;
+    font-size: 10px;
+    line-height: 8px;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: color 0.15s ease, transform 0.15s ease;
+    user-select: none;
+    padding: 1px 2px;
+    display: block;
+}
+.sort-arrows .arr-u:hover {
+    color: #2563eb;
+    transform: translateY(-1px);
+}
+.sort-arrows .arr-d:hover {
+    color: #2563eb;
+    transform: translateY(1px);
+}
+.sort-arrows .arr-u.active {
+    color: #1d4ed8 !important;
+    font-weight: 900;
+}
+.sort-arrows .arr-d.active {
+    color: #1d4ed8 !important;
+    font-weight: 900;
+}
+
+table.shift-table td {
+    padding: 9px 8px;
+    border-bottom: 1px solid #edf0f6;
+    vertical-align: middle;
+    font-size: 13px;
+}
+
+table.shift-table tbody tr:hover { background: #f7f9ff; }
+.id { font-weight: 700; color: var(--pri); }
+.nm { font-weight: 600; }
+.sub { color: var(--mu); font-size: 11.5px; }
+
+.pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 99px;
+    font-size: 11.5px;
+    font-weight: 700;
+}
+
+.pill.Day { background: var(--wab); color: var(--wa); }
+.pill.Night { background: #e5e8ff; color: #3730a3; }
+.pill.Active { background: var(--okb); color: var(--ok); }
+.pill.Inactive { background: var(--nob); color: var(--no); }
+.pill.cm { background: #f3e8ff; color: #7e22ce; margin-left: 4px; }
+
+/* Applicable to: New-Line items and Floating Popover */
+.appl-td {
+    vertical-align: middle;
+}
+
+.appl-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: flex-start;
+}
+
+.appl-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #475569;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    user-select: none;
+    line-height: 1.25;
+}
+
+.appl-item:hover {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.12);
+}
+
+.appl-item .appl-icon {
+    font-size: 11px;
+    opacity: 0.9;
+}
+
+.appl-item.has-data {
+    color: #1e3a8a;
+    background: #f1f5fd;
+    border-color: #c7d7f8;
+}
+
+.appl-item.has-data:hover {
+    background: #e0ecff;
+    border-color: #60a5fa;
+}
+
+/* Floating Popover on Top of Everything */
+.appl-floating-popover {
+    position: fixed;
+    z-index: 999999;
+    display: none;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.22);
+    padding: 10px 12px;
+    width: 260px;
+    max-height: 220px;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #1e293b;
+    pointer-events: auto;
+    animation: fadeInApplPop 0.12s ease-out;
+}
+
+@@keyframes fadeInApplPop {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.appl-pop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 5px;
+    margin-bottom: 6px;
+    font-weight: 700;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--pri-d);
+}
+
+.appl-pop-count {
+    background: var(--pri-l);
+    color: var(--pri);
+    padding: 1px 6px;
+    border-radius: 99px;
+    font-size: 10.5px;
+    font-weight: 700;
+}
+
+.appl-pop-body {
+    max-height: 170px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.appl-pop-body::-webkit-scrollbar {
+    width: 5px;
+}
+.appl-pop-body::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+.appl-pop-body::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+.appl-pop-body::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.appl-pop-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.appl-pop-list li {
+    padding: 3px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    color: #334155;
+    font-size: 12px;
+    border-bottom: 1px dashed #f1f5f9;
+}
+.appl-pop-list li:last-child {
+    border-bottom: none;
+}
+
+.appl-pop-bullet {
+    color: var(--pri);
+    font-weight: bold;
+    line-height: 1;
+}
+
+.appl-pop-empty {
+    color: #64748b;
+    font-style: italic;
+    padding: 6px 0;
+    font-size: 12px;
+}
+
+.act { white-space: nowrap; }
+.ib {
+    border: 1px solid var(--bd);
+    background: #fff;
+    border-radius: 6px;
+    padding: 4px 9px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.1s;
+}
+
+.ib:hover { border-color: var(--pri); color: var(--pri); }
+.ib.d:hover { border-color: var(--no); color: var(--no); }
+
+.foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--mu);
+    font-size: 13px;
+}
+
+.pg button {
+    border: 1px solid var(--bd);
+    background: #fff;
+    padding: 5px 11px;
+    margin-left: 3px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.pg button.on {
+    background: var(--pri);
+    color: #fff;
+    border-color: var(--pri);
+}
+
+.pg button:disabled { opacity: .45; cursor: default; }
+.empty { text-align: center; padding: 30px; color: var(--mu); }
+
+/* MODAL OVERLAY */
+.ov {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 25, 40, .6);
+    z-index: 99999;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.ov.open { display: block; }
+.modal-box {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 900px;
+    margin: 25px auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .3);
+    animation: modalIn 0.2s ease-out;
+}
+
+@@keyframes modalIn {
+    from { opacity: 0; transform: translateY(-15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.mh {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 22px;
+    background: #1f3a5f;
+    color: #fff;
+    border-radius: 12px 12px 0 0;
+}
+
+.mh h3 { margin: 0; font-size: 18px; color: #fff; font-weight: 700; }
+.mh button {
+    background: none;
+    border: 0;
+    color: #fff;
+    font-size: 26px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.mb { padding: 6px 22px 14px; }
+.grid-form {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.f { display: flex; flex-direction: column; gap: 4px; }
+.f.s2 { grid-column: span 2; }
+.f.s4 { grid-column: span 4; }
+.f > label { font-size: 12px; font-weight: 600; color: #6b7a8c; margin-bottom: 0; }
+.req { color: #dc2626; font-weight: 700; }
+
+.modal-box .inp {
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid #e1e6ed;
+    border-radius: 8px;
+    background: #fff;
+    min-width: 0;
+    width: 100%;
+    font-size: 13.5px;
+}
+
+.modal-box textarea.inp {
+    height: auto;
+    padding: 8px 12px;
+    resize: vertical;
+}
+
+.modal-box .inp:focus, .modal-box .ms button:focus {
+    outline: 2px solid rgba(31, 58, 95, .25);
+    border-color: #1f3a5f;
+}
+
+.sec {
+    margin: 16px 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: #c8963e;
+    border-bottom: 1px solid #e1e6ed;
+    padding-bottom: 6px;
+}
+
+.mf {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 22px;
+    border-top: 1px solid #e1e6ed;
+    background: #fafbfc;
+    border-radius: 0 0 12px 12px;
+}
+
+.modal-box .btn-modal {
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 8px;
+    border: 1px solid #e1e6ed;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13.5px;
+}
+
+.modal-box .btn-modal.p {
+    background: #1f3a5f;
+    border-color: #1f3a5f;
+    color: #fff;
+}
+
+.modal-box .btn-modal.p:hover { background: #16294a; }
+.chk {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    align-items: center;
+    font-weight: 600;
+    padding-top: 18px;
+}
+.chk input { width: 18px; height: 18px; accent-color: #1f3a5f; cursor: pointer; }
+.err { border-color: var(--no) !important; outline: 1px solid var(--no) !important; }
+
+/* 12-HOUR TIME PICKER */
+.tp {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--tpbg);
+    border: 1px solid #d9cfa0;
+    border-radius: 6px;
+    padding: 4px 6px;
+    width: fit-content;
+    user-select: none;
+}
+
+.tp .seg {
+    padding: 2px 4px;
+    border-radius: 3px;
+    min-width: 24px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    cursor: default;
+    outline: 0;
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.tp .seg:focus { background: #3b6fd8; color: #fff; }
+.tp .sp { display: flex; flex-direction: column; margin-left: 5px; gap: 1px; }
+.tp .sp i {
+    font-style: normal;
+    width: 16px;
+    height: 10px;
+    background: #d8dbe3;
+    border: 1px solid #aab;
+    border-radius: 2px;
+    font-size: 7px;
+    line-height: 8px;
+    text-align: center;
+    cursor: pointer;
+}
+.tp .sp i:hover { background: #c3cdee; }
+
+/* MULTI SELECT */
+.ms { position: relative; }
+.msb {
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid #e1e6ed;
+    border-radius: 8px;
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.msb .ph { color: #6b7a8c; }
+.msl {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 42px;
+    max-height: 210px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #e1e6ed;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(20, 35, 60, .15);
+    z-index: 1000;
+}
+
+.ms.open .msl { display: block; }
+.msl label {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13.5px;
+    font-weight: 400;
+    color: #1d2733;
+    margin-bottom: 0;
+}
+
+.msl label:hover { background: #f3f5f8; }
+
+.toast-box {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    background: #111827;
+    color: #fff;
+    padding: 12px 18px;
+    border-radius: 8px;
+    display: none;
+    z-index: 999999;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, .3);
+    font-weight: 500;
+}
+
+/* RESPONSIVE DESIGN */
+@@media(max-width: 1180px) {
+    .filters {
+        grid-template-columns: repeat(3, 1fr);
     }
-
-    .btn-common {
-        border-radius: 14px !important;
-        padding: .375rem 1.35rem !important;
-        box-shadow: 0px 2px 6px #e9e9e9;
-        margin-left: 5px;
-        color: black !important;
+    .filters label { grid-column: span 3; }
+    table.shift-table, thead, tbody, tr, td { display: block; }
+    thead { display: none; }
+    tbody tr {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px 12px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--bd);
     }
-
-    .btn-common:hover {
-        color: #28a745 !important;
+    td { border: 0 !important; padding: 0 !important; }
+    td[data-l]:before {
+        content: attr(data-l);
+        display: block;
+        font-size: 10.5px;
+        text-transform: uppercase;
+        color: var(--mu);
+        font-weight: 700;
     }
+    td.wide { grid-column: span 2; }
+    td.act { grid-column: span 2; text-align: right; align-self: end; }
+}
 
-    .btn-default {
-        border-color: #ddd !important;
-    }
+@@media(max-width: 760px) {
+    .grid-form { grid-template-columns: 1fr 1fr; }
+    .f.s4, .sec { grid-column: span 2; }
+    tbody tr { grid-template-columns: repeat(2, 1fr); }
+}
 
-    .form-control[readonly] {
-        background-color: #e9ecef !important;
-    }
+@@media(max-width: 520px) {
+    .ov { padding: 10px; }
+    .mb { padding: 6px 14px 8px; }
+    .grid-form { grid-template-columns: 1fr; }
+    .f.s2, .f.s4, .sec { grid-column: span 1; }
+    .mf { padding: 12px 14px; }
+}
 
-    .form-control[readonly]:focus {
-        box-shadow: none;
-        border-color: inherit;
-    }
-
-    .form-control:focus:not(:disabled):not([readonly]) {
-        --bs-focus-ring-width: 0.2rem;
-        --bs-focus-ring-color: rgba(0, 123, 255, 0.25);
-        border-color: #80bdff;
-        box-shadow: 0 0 0 0 rgba(13, 110, 253, .25);
-    }
-
-    /* Page-specific tweaks to prevent layout break at wide screens (>=1400px) */
-    /* Scoped to this page using .hrmatdshifts-page class on the section */
-    @@media (min-width: 1400px) {
-        .hrmatdshifts-page .row {
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-        }
-
-        /* Reduce the centered column width so content doesn't wrap into two rows */
-        .hrmatdshifts-page .col-md-9.mx-auto.pr-0 {
-            width: 60% !important;
-            max-width: 60% !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-        }
-
-        /* Tighter card spacing */
-        .hrmatdshifts-page .card {
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-        }
-
-        .hrmatdshifts-page .card-body {
-            padding-left: .5rem !important;
-            padding-right: .5rem !important;
-        }
-
-        /* If you prefer exactly half width at 1400px, change 60% to 50% above */
-    }
+@@media print {
+    .top .btn-custom, .top .dd, .filters, .tb, .foot, .act, .kpis, .mh button, .mf { display: none !important; }
+    .wrap { padding: 0; }
+}
 </style>
-<div class="container">
-<partial name="_PageHeader" model="Model" />
-</div>
-<!-- Content Header (Page header) -->
 
-<section class="content  consistent-look hrmatdshifts-page">
-    <div class="row" style="margin-right: 0px; margin-left: 0px;">
-            <div class="col-md-9 mx-auto pr-0">
-                <div class="card ">
-                    <div class="card-header px-2">
-                        <partial name="_Toolbars" model="new ToobarModel() { Title = Model.Breadcrumb, Code = Model.Code, Name = Model.Setup.ShiftName }" />
-                    </div> 
-    <div class="container-fluid">
-                    <div class="card-body py-0 px-2">
-
-                        <form asp-action="Setup" method="post" id="hRMATDShifts-form" asp-controller="HRMATDShifts">
-
-
-                            <partial name="_Setup" model="Model.Setup" />
-
-                        </form> 
-                    </div>
+<div class="shift-app">
+    <div class="wrap">
+        <div class="crumb">HR &amp; Payroll › Attendance › Shift Setup</div>
+        <div class="top">
+            <h1>Shift Setup</h1>
+            <input class="in gsearch" id="gs" placeholder="🔍 Search shifts…">
+            <div class="dd" id="exp">
+                <button type="button" class="btn-custom" onclick="this.parentNode.classList.toggle('open')">⬇ Export ▾</button>
+                <div class="menu">
+                    <button type="button" onclick="window.print()">🖨 Print / Preview</button>
+                    <button type="button" onclick="window.print()">📄 PDF (Save as PDF)</button>
+                    <button type="button" onclick="exportCSV()">📊 Excel (CSV)</button>
                 </div>
             </div>
-        </div> 
-        <div class="col-md-12 container-fluid">
-            <div class="bg-white">
-                <div class="card-body p-2 pt-3">
-                    <div class="js-hRMATDShifts-grid-container">
-                        @await Html.PartialAsync("_Grid", Model.HrmAttendenceShiftList)
-                    </div>
+            <button type="button" class="btn-custom p" onclick="openForm()">＋ New Shift</button>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="kpis" id="kpis"></div>
+
+        <!-- Filter Bar -->
+        <div class="card-box filters">
+            <label>Filter By:</label>
+            <select class="in" id="fType">
+                <option value="">Shift type: All</option>
+            </select>
+            <select class="in" id="fCo"><option value="">Company: All</option></select>
+            <select class="in" id="fBr"><option value="">Branch: All</option></select>
+            <select class="in" id="fDp"><option value="">Department: All</option></select>
+            <select class="in" id="fSt">
+                <option value="">Activity status: All</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+            </select>
+            <button type="button" class="btn-custom" onclick="resetF()">↺ Reset</button>
+        </div>
+
+        <!-- Shift List Table Card -->
+        <div class="card-box">
+            <div class="tb">
+                <div class="tb-left">
+                    <h2>Shift List</h2>
+                    <label class="tb-select">
+                        Show 
+                        <select class="in" id="pp" style="margin: 0 4px;">
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select> 
+                        Entries
+                    </label>
                 </div>
+                <label class="tb-search">
+                    Search: 
+                    <input class="in" id="ls" placeholder="Type to search" style="width: 220px;">
+                </label>
+            </div>
+            <div class="shift-table-wrap">
+                <table class="shift-table">
+                    <thead>
+                        <tr>
+                            <th class="th-sort" data-col="id" onclick="sortBy('id')">
+                                <div class="th-inner"><span>Shift ID</span><span class="sort-arrows"><i class="arr-u active" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('id', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('id', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="name" onclick="sortBy('name')">
+                                <div class="th-inner"><span>Shift name</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('name', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('name', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="type" onclick="sortBy('type')">
+                                <div class="th-inner"><span>Type</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('type', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('type', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="start" onclick="sortBy('start')">
+                                <div class="th-inner"><span>Start – End</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('start', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('start', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="late" onclick="sortBy('late')">
+                                <div class="th-inner"><span>Late</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('late', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('late', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="absent" onclick="sortBy('absent')">
+                                <div class="th-inner"><span>Absent</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('absent', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('absent', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="bf" onclick="sortBy('bf')">
+                                <div class="th-inner"><span>Break</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('bf', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('bf', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="early" onclick="sortBy('early')">
+                                <div class="th-inner"><span>Early leave before</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('early', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('early', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="appl" onclick="sortBy('appl')">
+                                <div class="th-inner"><span>Applicable to</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('appl', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('appl', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="otRule" onclick="sortBy('otRule')">
+                                <div class="th-inner"><span>Overtime</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('otRule', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('otRule', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="eff" onclick="sortBy('eff')">
+                                <div class="th-inner"><span>Effective From</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('eff', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('eff', 'desc')">▼</i></span></div>
+                            </th>
+                            <th class="th-sort" data-col="status" onclick="sortBy('status')">
+                                <div class="th-inner"><span>Status</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('status', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('status', 'desc')">▼</i></span></div>
+                            </th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tb"></tbody>
+                </table>
+            </div>
+            <div class="foot">
+                <span id="info"></span>
+                <span class="pg" id="pg"></span>
             </div>
         </div>
     </div>
-</section>
-<div class="container">
-    <partial name="_BottomNavigation" />
-    <partial name="DeleteModal" />
+
+    <!-- ===== ADD / EDIT MODAL POPUP ===== -->
+    <div class="ov" id="ov">
+        <div class="modal-box">
+            <div class="mh">
+                <h3 id="mt">Add New Shift</h3>
+                <button type="button" onclick="closeForm()" aria-label="Close">×</button>
+            </div>
+            <div class="mb">
+                <div class="sec">Basic details</div>
+                <div class="grid-form">
+                    <div class="f">
+                        <label>Shift type <span class="req">*</span></label>
+                        <select class="inp" id="type"></select>
+                    </div>
+                    <div class="f">
+                        <label>Shift ID</label>
+                        <input class="inp" id="sid" readonly style="background-color: #f3f5f8; font-weight: 700;">
+                    </div>
+                    <div class="f s2">
+                        <label>Shift name <span class="req">*</span></label>
+                        <input class="inp" id="name" placeholder="e.g. General Day Shift">
+                    </div>
+                    <div class="f s4">
+                        <label>Description</label>
+                        <textarea class="inp" id="desc" rows="2" placeholder="Brief description of the shift"></textarea>
+                    </div>
+                </div>
+
+                <div class="sec">Timing &amp; attendance rules</div>
+                <div class="grid-form">
+                    <div class="f"><label>Start time <span class="req">*</span></label><div class="tp" data-tp="start"></div></div>
+                    <div class="f"><label>End time <span class="req">*</span></label><div class="tp" data-tp="end"></div></div>
+                    <div class="f"><label>Late time</label><div class="tp" data-tp="late"></div></div>
+                    <div class="f"><label>Absent time</label><div class="tp" data-tp="absent"></div></div>
+                    <div class="f"><label>Break from</label><div class="tp" data-tp="bf"></div></div>
+                    <div class="f"><label>Break to</label><div class="tp" data-tp="bt"></div></div>
+                    <div class="f"><label>Early leave before</label><div class="tp" data-tp="early"></div></div>
+                    <div class="f chk">
+                        <input type="checkbox" id="cross">
+                        <label for="cross" style="cursor: pointer;">Cross Midnight / Next Day</label>
+                    </div>
+                </div>
+
+                <div class="sec">Applicable to</div>
+                <div class="grid-form" id="appl"></div>
+
+                <div class="sec">Overtime rules</div>
+                <div class="grid-form">
+                    <div class="f s2">
+                        <label>Overtime rule</label>
+                        <select class="inp" id="otRule"></select>
+                    </div>
+                    <div class="f"><label>OT start after (min)</label><input class="inp" type="number" min="0" id="otAfter" value="60"></div>
+                    <div class="f"><label>Maximum OT per day (hrs)</label><input class="inp" type="number" min="0" step="0.5" id="otMax" value="4"></div>
+                    <div class="f s2">
+                        <label>Min. OT minutes</label>
+                        <input class="inp" type="number" min="0" id="otMin" value="50">
+                        <span class="sub">e.g. 50 → 1st hour counted at 50 min, then 1 hr 50 min, 2 hr 50 min …</span>
+                    </div>
+                    <div class="f">
+                        <label>Weekly-off OT</label>
+                        <select class="inp" id="woOT">
+                            <option>Not Applicable</option>
+                            <option>Pay Overtime</option>
+                            <option>Compensatory Leave</option>
+                        </select>
+                    </div>
+                    <div class="f">
+                        <label>Holiday OT</label>
+                        <select class="inp" id="hOT">
+                            <option>Not Applicable</option>
+                            <option>Pay Overtime</option>
+                            <option>Compensatory Leave</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="sec">Status</div>
+                <div class="grid-form">
+                    <div class="f">
+                        <label>Effective from date <span class="req">*</span></label>
+                        <input class="inp" type="date" id="eff">
+                    </div>
+                    <div class="f">
+                        <label>Activity status</label>
+                        <select class="inp" id="status">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="f s2">
+                        <label>Administrative remarks</label>
+                        <input class="inp" id="rem" placeholder="Any additional notes">
+                    </div>
+                </div>
+            </div>
+            <div class="mf">
+                <button type="button" class="btn-modal" onclick="closeForm()">Cancel</button>
+                <button type="button" class="btn-modal p" onclick="save()">Save Shift</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-box" id="toast"></div>
+    <div class="appl-floating-popover" id="applFloatingPopover"></div>
 </div>
 
-<!-- Flatpickr CSS -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-
-<!-- Optional: Theme (You can use this if you want a theme for Flatpickr) -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
-
-<!-- Bootstrap (Optional, if you need it for layout styling) -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-
-
 @section Scripts {
-    @{
-        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+<script>
+/* ===== REAL DATABASE MASTER DATA ===== */
+const DB_DATA = {
+    company: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(companies)),
+    branch: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(branches)),
+    dept: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(depts)),
+    emp: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(emps)),
+    shiftType: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(shiftTypes)),
+    otRule: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(otRules))
+};
+
+const OPT = {
+    company: (DB_DATA.company || []).map(x => ({ id: x.id, name: x.name })),
+    branch: (DB_DATA.branch || []).map(x => ({ id: x.id, name: x.name })),
+    dept: (DB_DATA.dept || []).map(x => ({ id: x.id, name: x.name })),
+    emp: (DB_DATA.emp || []).map(x => ({ id: x.id, name: x.name }))
+};
+
+// Safe DOM Selectors (avoids shadowing window.$ / jQuery)
+const q = s => document.querySelector(s);
+const qAll = s => [...document.querySelectorAll(s)];
+const TPK = ['start', 'end', 'late', 'absent', 'bf', 'bt', 'early'];
+
+/* ===== 12-HOUR TIME PICKER (hh : mm : ss AM/PM + spinner) ===== */
+function buildTP(el, val) {
+    if (!el) return;
+    el.className = 'tp';
+    el.innerHTML = '<span class="seg" tabindex="0" data-k="h"></span>:<span class="seg" tabindex="0" data-k="m"></span>:<span class="seg" tabindex="0" data-k="s"></span> <span class="seg" tabindex="0" data-k="p"></span><span class="sp"><i data-d="1">▲</i><i data-d="-1">▼</i></span>';
+    el.active = 'h';
+    setTP(el, val || '12:00:00 AM');
+    const segs = [...el.querySelectorAll('.seg')];
+    segs.forEach((s, i) => {
+        s.onfocus = () => el.active = s.dataset.k;
+        s.onkeydown = e => {
+            const k = s.dataset.k;
+            if (e.key == 'ArrowUp' || e.key == 'ArrowDown') {
+                e.preventDefault();
+                bump(el, k, e.key == 'ArrowUp' ? 1 : -1);
+            } else if (e.key == 'ArrowRight' && segs[i + 1]) {
+                e.preventDefault();
+                segs[i + 1].focus();
+            } else if (e.key == 'ArrowLeft' && segs[i - 1]) {
+                e.preventDefault();
+                segs[i - 1].focus();
+            } else if (/^\d$/.test(e.key) && k != 'p') {
+                e.preventDefault();
+                const max = k == 'h' ? 12 : 59, t = el.buf && el.bk == k ? +(el.buf + e.key) : +e.key;
+                if (t <= max && !(k == 'h' && t == 0 && el.buf)) {
+                    el.v[k] = k == 'h' && t == 0 ? 12 : t;
+                    paint(el);
+                }
+                if (el.buf && el.bk == k || (+e.key > (k == 'h' ? 1 : 5))) {
+                    el.buf = '';
+                    segs[i + 1] && segs[i + 1].focus();
+                } else {
+                    el.buf = e.key;
+                    el.bk = k;
+                }
+            } else if (k == 'p' && /^[ap]$/i.test(e.key)) {
+                el.v.p = e.key.toLowerCase() == 'a' ? 'AM' : 'PM';
+                paint(el);
+            }
+        };
+        s.onwheel = e => {
+            e.preventDefault();
+            s.focus();
+            bump(el, s.dataset.k, e.deltaY < 0 ? 1 : -1);
+        };
+    });
+    el.querySelectorAll('.sp i').forEach(b => b.onclick = () => bump(el, el.active, +b.dataset.d));
+}
+
+function bump(el, k, d) {
+    const v = el.v;
+    if (k == 'h') v.h = ((v.h - 1 + d + 12) % 12) + 1;
+    else if (k == 'm') v.m = (v.m + d + 60) % 60;
+    else if (k == 's') v.s = (v.s + d + 60) % 60;
+    else v.p = v.p == 'AM' ? 'PM' : 'AM';
+    paint(el);
+}
+
+function paint(el) {
+    const p = n => String(n).padStart(2, '0');
+    el.querySelector('[data-k=h]').textContent = p(el.v.h);
+    el.querySelector('[data-k=m]').textContent = p(el.v.m);
+    el.querySelector('[data-k=s]').textContent = p(el.v.s);
+    el.querySelector('[data-k=p]').textContent = el.v.p;
+}
+
+function setTP(el, str) {
+    if (!el) return;
+    const m = (str || '').match(/(\d+):(\d+):(\d+)\s*(AM|PM)/i);
+    el.v = m ? { h: +m[1], m: +m[2], s: +m[3], p: m[4].toUpperCase() } : { h: 12, m: 0, s: 0, p: 'AM' };
+    paint(el);
+}
+
+function getTP(el) {
+    if (!el || !el.v) return '12:00:00 AM';
+    const p = n => String(n).padStart(2, '0'), v = el.v;
+    return `${p(v.h)}:${p(v.m)}:${p(v.s)} ${v.p}`;
+}
+
+const tpEl = k => q(`[data-tp=${k}]`);
+const short = t => t ? t.replace(/:00\s*(AM|PM)/i, ' $1') : '—';
+const mins = t => {
+    const m = (t || '').match(/(\d+):(\d+):?(\d*)\s*(AM|PM)/i);
+    if (!m) return 0;
+    return ((+m[1] % 12) + (m[4].toUpperCase() == 'PM' ? 12 : 0)) * 60 + +m[2];
+};
+
+/* ===== MULTI SELECT DROPDOWN ===== */
+const MS = {};
+function buildMS(el, key, label) {
+    if (!el) return;
+    MS[key] = [];
+    el.dataset.label = label;
+    el.innerHTML = '<button type="button" class="msb"></button><div class="msl"></div>';
+    el.querySelector('.msl').innerHTML = '<label><input type="checkbox" data-all> <b>Select all</b></label>' +
+        (OPT[key] || []).map(o => `<label><input type="checkbox" value="${o.id}"> ${o.name}</label>`).join('');
+
+    el.querySelector('.msb').onclick = () => {
+        qAll('.ms').forEach(m => m != el && m.classList.remove('open'));
+        el.classList.toggle('open');
+    };
+
+    el.querySelector('.msl').onchange = e => {
+        const cs = [...el.querySelectorAll('.msl [value]')];
+        if (e.target.dataset.all != null) {
+            cs.forEach(c => c.checked = e.target.checked);
+        }
+        MS[key] = cs.filter(c => c.checked).map(c => c.value);
+        renderMS(el, key, label);
+    };
+    renderMS(el, key, label);
+}
+
+function renderMS(el, key, label) {
+    if (!el) return;
+    const a = MS[key] || [];
+    const items = OPT[key] || [];
+    const names = items.filter(x => a.includes(x.id)).map(x => x.name);
+    const msb = el.querySelector('.msb');
+    const lbl = (label || el.dataset.label || key).toLowerCase();
+    if (msb) {
+        if (names.length === 0) {
+            msb.textContent = 'Select ' + lbl;
+            msb.title = '';
+        } else if (names.length === 1) {
+            msb.textContent = names[0];
+            msb.title = names[0];
+        } else {
+            msb.textContent = `${names.length} ${lbl} selected`;
+            msb.title = names.join(', ');
+        }
     }
-    <script src="~/js/pages/hrmAtdShift.js"></script>
-    <script type="text/javascript">
-        var options = {
-            baseUrl: '@Url.Action("", "HRMATDShifts")'
-        };
-        options.load = () => {
-        };
+    el.querySelectorAll('.msl [value]').forEach(c => c.checked = a.includes(c.value));
+    const all = el.querySelector('[data-all]');
+    if (all) all.checked = items.length > 0 && a.length === items.length;
+}
 
-        $.hrmAtdShift(options);
-    </script>
+function setMS(key, arr) {
+    MS[key] = Array.isArray(arr) ? [...arr] : (arr ? String(arr).split(',') : []);
+    const el = q(`[data-ms=${key}]`);
+    if (el) renderMS(el, key, el.dataset.label);
+}
 
-    <!-- Flatpickr JS -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+function getNameById(key, id) {
+    if (!id) return '';
+    const items = OPT[key] || [];
+    const found = items.find(x => String(x.id).trim() == String(id).trim() || String(x.name).trim() == String(id).trim());
+    return found ? found.name : id;
+}
 
-    <!-- Bootstrap JS (only if you need it for Bootstrap-based features like modals, dropdowns, etc.) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+function getNamesList(key, arr) {
+    if (!arr) return [];
+    const list = Array.isArray(arr) ? arr : String(arr).split(',');
+    return list.map(id => getNameById(key, id)).filter(Boolean);
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('.ms')) qAll('.ms').forEach(m => m.classList.remove('open'));
+    if (!e.target.closest('.dd')) q('#exp')?.classList.remove('open');
+});
+
+/* ===== INITIALIZE DROPDOWNS ===== */
+TPK.forEach(k => buildTP(tpEl(k)));
+
+[['company', 'Company'], ['branch', 'Branch'], ['dept', 'Department'], ['emp', 'Employee']].forEach(([key, label]) => {
+    const applEl = q('#appl');
+    if (applEl) {
+        const field = document.createElement('div');
+        field.className = 'f';
+        field.innerHTML = `<label>${label}</label><div class="ms" data-ms="${key}"></div>`;
+        applEl.appendChild(field);
+        buildMS(field.querySelector('.ms'), key, label);
+    }
+});
+
+// Populate Top Filters
+[['fCo', 'Company', 'company'], ['fBr', 'Branch', 'branch'], ['fDp', 'Department', 'dept']].forEach(([i, l, k]) => {
+    const sel = q('#' + i);
+    if (sel) {
+        sel.innerHTML = `<option value="">${l}: All</option>` + (OPT[k] || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('');
+    }
+});
+
+// Populate Shift Type Dropdowns
+if (DB_DATA.shiftType && DB_DATA.shiftType.length) {
+    if (q('#fType')) q('#fType').innerHTML = `<option value="">Shift type: All</option>` + DB_DATA.shiftType.map(st => `<option value="${st.id}">${st.name}</option>`).join('');
+    if (q('#type')) q('#type').innerHTML = DB_DATA.shiftType.map(st => `<option value="${st.id}">${st.name}</option>`).join('');
+} else {
+    if (q('#fType')) q('#fType').innerHTML = `<option value="">Shift type: All</option><option value="01">Day Shift</option><option value="02">Night Shift</option>`;
+    if (q('#type')) q('#type').innerHTML = `<option value="01">Day Shift</option><option value="02">Night Shift</option>`;
+}
+
+// Populate Overtime Rules Dropdown
+if (DB_DATA.otRule && DB_DATA.otRule.length) {
+    if (q('#otRule')) q('#otRule').innerHTML = `<option value="">Not Applicable</option>` + DB_DATA.otRule.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+} else {
+    if (q('#otRule')) q('#otRule').innerHTML = `<option value="">Not Applicable</option><option value="01">After Shift End</option><option value="02">Shift End + After Grace</option>`;
+}
+
+/* ===== REAL DATA STATE & AJAX ===== */
+let shifts = [];
+let page = 1;
+let editing = null;
+let liveDashboardCounts = null;
+let sortCol = 'id';
+let sortDir = 'asc';
+
+function sortBy(col, forceDir) {
+    if (forceDir) {
+        sortCol = col;
+        sortDir = forceDir;
+    } else if (sortCol === col) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortCol = col;
+        sortDir = 'asc';
+    }
+    page = 1;
+    render();
+}
+window.sortBy = sortBy;
+
+function renderSortHeaders() {
+    qAll('th.th-sort').forEach(th => {
+        const col = th.dataset.col;
+        const u = th.querySelector('.arr-u');
+        const d = th.querySelector('.arr-d');
+        th.classList.remove('sorted-asc', 'sorted-desc');
+
+        if (sortCol === col) {
+            if (sortDir === 'asc') {
+                th.classList.add('sorted-asc');
+                if (u) u.classList.add('active');
+                if (d) d.classList.remove('active');
+            } else {
+                th.classList.add('sorted-desc');
+                if (u) u.classList.remove('active');
+                if (d) d.classList.add('active');
+            }
+        } else {
+            if (u) u.classList.remove('active');
+            if (d) d.classList.remove('active');
+        }
+    });
+}
+
+function getSortVal(s, col) {
+    switch (col) {
+        case 'id':
+            return s.id || '';
+        case 'name':
+            return (s.name || '').toLowerCase();
+        case 'type':
+            return (s.type || '').toLowerCase();
+        case 'start':
+            return mins(s.start);
+        case 'late':
+            return mins(s.late);
+        case 'absent':
+            return mins(s.absent);
+        case 'bf':
+            return mins(s.bf);
+        case 'early':
+            return mins(s.early);
+        case 'appl': {
+            const compCount = Array.isArray(s.company) ? s.company.length : 0;
+            const brCount = Array.isArray(s.branch) ? s.branch.length : 0;
+            const deptCount = Array.isArray(s.dept) ? s.dept.length : 0;
+            const empCount = Array.isArray(s.emp) ? s.emp.length : 0;
+            return (compCount * 1000) + (brCount * 100) + (deptCount * 10) + empCount;
+        }
+        case 'otRule':
+            return (s.otRule || '').toLowerCase();
+        case 'eff':
+            return s.eff ? new Date(s.eff).getTime() : 0;
+        case 'status':
+            return (s.status || '').toLowerCase();
+        default:
+            return '';
+    }
+}
+
+let applPopTimeout = null;
+
+function hoverAppl(targetEl, shiftId, type) {
+    clearTimeout(applPopTimeout);
+    const pop = q('#applFloatingPopover');
+    if (!pop) return;
+
+    const s = shifts.find(x => x.id == shiftId);
+    if (!s) return;
+
+    let title = '';
+    let items = [];
+    let countBadge = '';
+
+    if (type === 'co') {
+        items = getNamesList('company', s.company);
+        countBadge = items.length ? items.length + ' Company' : 'All';
+        title = '🏢 Company (' + countBadge + ')';
+    } else if (type === 'br') {
+        items = getNamesList('branch', s.branch);
+        countBadge = items.length ? items.length + ' Branch' : 'All';
+        title = '🌿 Branch (' + countBadge + ')';
+    } else if (type === 'dp') {
+        items = getNamesList('dept', s.dept);
+        countBadge = items.length ? items.length + ' Department' : 'All';
+        title = '📁 Department (' + countBadge + ')';
+    } else if (type === 'em') {
+        items = getNamesList('emp', s.emp);
+        countBadge = items.length ? items.length + ' Employee' : 'All';
+        title = '👤 Employee (' + countBadge + ')';
+    }
+
+    let bodyHtml = '';
+    if (items && items.length > 0) {
+        bodyHtml = '<ul class="appl-pop-list">' + 
+            items.map(name => `<li><span class="appl-pop-bullet">•</span> <span>${name}</span></li>`).join('') + 
+            '</ul>';
+    } else {
+        bodyHtml = `<div class="appl-pop-empty">All selected (No restriction)</div>`;
+    }
+
+    pop.innerHTML = `
+        <div class="appl-pop-header">
+            <span>${title}</span>
+            <span class="appl-pop-count">${items.length ? items.length + ' item' + (items.length > 1 ? 's' : '') : 'All'}</span>
+        </div>
+        <div class="appl-pop-body">${bodyHtml}</div>
+    `;
+
+    pop.style.display = 'block';
+
+    // Position fixed calculation (relative to viewport)
+    const rect = targetEl.getBoundingClientRect();
+    const popWidth = 260;
+    const popMaxHeight = 220;
+
+    let left = rect.right + 10;
+    let top = rect.top - 5;
+
+    // Flip to left if overflowing right of window
+    if (left + popWidth > window.innerWidth - 12) {
+        left = Math.max(10, rect.left - popWidth - 10);
+    }
+
+    // Shift upwards if overflowing bottom of viewport
+    if (top + popMaxHeight > window.innerHeight - 12) {
+        top = Math.max(10, window.innerHeight - popMaxHeight - 12);
+    }
+    if (top < 10) top = 10;
+
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+}
+window.hoverAppl = hoverAppl;
+
+function hideApplPopover() {
+    clearTimeout(applPopTimeout);
+    applPopTimeout = setTimeout(() => {
+        const pop = q('#applFloatingPopover');
+        if (pop) pop.style.display = 'none';
+    }, 150);
+}
+window.hideApplPopover = hideApplPopover;
+
+function loadShifts() {
+    jQuery.ajax({
+        url: '/HRMATDShifts/GetShifts',
+        type: 'GET',
+        cache: false,
+        success: function (data) {
+            shifts = Array.isArray(data) ? data : [];
+            page = 1;
+            render();
+        },
+        error: function (xhr) {
+            console.error('Failed to load shifts', xhr);
+            toast('Failed to load shift records');
+        }
+    });
+}
+
+function loadDashboardCount() {
+    jQuery.ajax({
+        type: 'GET',
+        url: '/HRMATDShifts/GetDashboardCount',
+        cache: false,
+        success: function (data) {
+            if (data) {
+                liveDashboardCounts = data;
+                kpis();
+            }
+        },
+        error: function (xhr) {
+            console.warn('Dashboard count query error', xhr);
+        }
+    });
+}
+
+function filtered() {
+    const qSearch = ((q('#ls')?.value || '') + ' ' + (q('#gs')?.value || '')).toLowerCase().trim();
+    const fTypeVal = q('#fType')?.value || '';
+    const fCoVal = q('#fCo')?.value || '';
+    const fBrVal = q('#fBr')?.value || '';
+    const fDpVal = q('#fDp')?.value || '';
+    const fStVal = q('#fSt')?.value || '';
+
+    const list = shifts.filter(s => {
+        if (fTypeVal && s.typeId !== fTypeVal && s.type !== fTypeVal) return false;
+        if (fCoVal && !(s.company || []).includes(fCoVal)) return false;
+        if (fBrVal && !(s.branch || []).includes(fBrVal)) return false;
+        if (fDpVal && !(s.dept || []).includes(fDpVal)) return false;
+        if (fStVal && s.status !== fStVal) return false;
+        if (qSearch) {
+            const rowStr = JSON.stringify(s).toLowerCase();
+            return qSearch.split(' ').every(w => rowStr.includes(w));
+        }
+        return true;
+    });
+
+    list.sort((a, b) => {
+        let va = getSortVal(a, sortCol);
+        let vb = getSortVal(b, sortCol);
+        if (typeof va === 'string' && typeof vb === 'string') {
+            const cmp = va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
+            return sortDir === 'asc' ? cmp : -cmp;
+        }
+        if (va < vb) return sortDir === 'asc' ? -1 : 1;
+        if (va > vb) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    return list;
+}
+
+function render() {
+    const L = filtered();
+    const pp = +(q('#pp')?.value || 10);
+    const pages = Math.max(1, Math.ceil(L.length / pp));
+    page = Math.min(page, pages);
+    const rows = L.slice((page - 1) * pp, page * pp);
+
+    const tb = q('#tb');
+    if (tb) {
+        tb.innerHTML = rows.map(s => {
+            const compNames = getNamesList('company', s.company);
+            const brNames = getNamesList('branch', s.branch);
+            const deptNames = getNamesList('dept', s.dept);
+            const empNames = getNamesList('emp', s.emp);
+
+            const compCount = compNames.length;
+            const brCount = brNames.length;
+            const deptCount = deptNames.length;
+            const empCount = empNames.length;
+
+            const compLabel = compCount ? (compCount + ' Company') : 'All Company';
+            const brLabel = brCount ? (brCount + ' Branch') : 'All Branch';
+            const deptLabel = deptCount ? (deptCount + ' Department') : 'All Department';
+            const empLabel = empCount ? (empCount + ' Employee' + (empCount > 1 ? 's' : '')) : 'All Employees';
+
+            const typeClass = (s.type || '').toLowerCase().includes('night') ? 'Night' : 'Day';
+            const statusClass = (s.status || '') === 'Active' ? 'Active' : 'Inactive';
+
+            return `<tr>
+    <td data-l="Shift ID" class="id">${s.id}</td>
+    <td data-l="Shift name" class="wide"><div class="nm">${s.name || ''}</div></td>
+    <td data-l="Type"><span class="pill ${typeClass}">${s.type || ''}</span>${s.cross ? '<span class="pill cm" title="Cross midnight">+1d</span>' : ''}</td>
+    <td data-l="Start – End" class="wide">${short(s.start)} – ${short(s.end)}</td>
+    <td data-l="Late">${short(s.late)}</td>
+    <td data-l="Absent">${short(s.absent)}</td>
+    <td data-l="Break">${short(s.bf)} – ${short(s.bt)}</td>
+    <td data-l="Early leave before">${short(s.early)}</td>
+    <td data-l="Applicable to" class="appl-td">
+        <div class="appl-lines">
+            <div class="appl-item ${compCount ? 'has-data' : ''}" 
+                 title="${compNames.length ? compNames.join(', ') : 'All Company'}" 
+                 onmouseenter="hoverAppl(this, '${s.id}', 'co')" 
+                 onmouseleave="hideApplPopover()">
+                <span class="appl-icon">🏢</span>
+                <span class="appl-lbl">${compLabel}</span>
+            </div>
+            <div class="appl-item ${brCount ? 'has-data' : ''}" 
+                 title="${brNames.length ? brNames.join(', ') : 'All Branch'}" 
+                 onmouseenter="hoverAppl(this, '${s.id}', 'br')" 
+                 onmouseleave="hideApplPopover()">
+                <span class="appl-icon">🌿</span>
+                <span class="appl-lbl">${brLabel}</span>
+            </div>
+            <div class="appl-item ${deptCount ? 'has-data' : ''}" 
+                 title="${deptNames.length ? deptNames.join(', ') : 'All Department'}" 
+                 onmouseenter="hoverAppl(this, '${s.id}', 'dp')" 
+                 onmouseleave="hideApplPopover()">
+                <span class="appl-icon">📁</span>
+                <span class="appl-lbl">${deptLabel}</span>
+            </div>
+            <div class="appl-item ${empCount ? 'has-data' : ''}" 
+                 title="${empNames.length ? empNames.join(', ') : 'All Employee'}" 
+                 onmouseenter="hoverAppl(this, '${s.id}', 'em')" 
+                 onmouseleave="hideApplPopover()">
+                <span class="appl-icon">👤</span>
+                <span class="appl-lbl">${empLabel}</span>
+            </div>
+        </div>
+    </td>
+    <td data-l="Overtime">${(!s.otRule || s.otRule === 'Not Applicable') ? '<span class="sub">N/A</span>' : `${s.otRule}<div class="sub">Max ${s.otMax || 4}h/day</div>`}</td>
+    <td data-l="Effective From">${s.eff || ''}</td>
+    <td data-l="Status"><span class="pill ${statusClass}">${s.status || ''}</span></td>
+    <td class="act">
+        <button type="button" class="ib" onclick="openForm('${s.id}')">✎ Edit</button> 
+        <button type="button" class="ib d" onclick="del('${s.id}')">🗑 Delete</button>
+    </td>
+</tr>`;
+        }).join('') || '<tr><td colspan="13" class="empty">No shifts found</td></tr>';
+    }
+
+    const info = q('#info');
+    if (info) {
+        info.textContent = `Showing ${L.length ? (page - 1) * pp + 1 : 0} to ${Math.min(page * pp, L.length)} of ${L.length} entries`;
+    }
+
+    const pg = q('#pg');
+    if (pg) {
+        let h = `<button type="button" ${page == 1 ? 'disabled' : ''} onclick="gp(${page - 1})">Prev</button>`;
+        for (let p = 1; p <= pages; p++) {
+            if (p == 1 || p == pages || Math.abs(p - page) <= 1)
+                h += `<button type="button" class="${p == page ? 'on' : ''}" onclick="gp(${p})">${p}</button>`;
+            else if (Math.abs(p - page) == 2)
+                h += '<button type="button" disabled>…</button>';
+        }
+        pg.innerHTML = h + `<button type="button" ${page == pages ? 'disabled' : ''} onclick="gp(${page + 1})">Next</button>`;
+    }
+    kpis();
+    renderSortHeaders();
+}
+
+const gp = p => { page = p; render(); };
+
+function kpis() {
+    const c = f => shifts.filter(f).length;
+    const totalCount = liveDashboardCounts?.TotalShifts ?? shifts.length;
+    const dayCount = liveDashboardCounts?.DayShifts ?? c(s => (s.type || '').toLowerCase().includes('day') || s.typeId == '01' || s.typeId == '1');
+    const nightCount = liveDashboardCounts?.NightShifts ?? c(s => (s.type || '').toLowerCase().includes('night') || s.typeId == '02' || s.typeId == '2');
+    const otCount = liveDashboardCounts?.WithOvertimeRules ?? c(s => s.otRule && s.otRule !== 'Not Applicable' && s.otRuleId);
+    const crossCount = liveDashboardCounts?.CrossMidnight ?? c(s => s.cross);
+    const activeCount = liveDashboardCounts?.Active ?? c(s => s.status === 'Active');
+    const inactiveCount = liveDashboardCounts?.Inactive ?? c(s => s.status === 'Inactive');
+
+    const K = [
+        ['Total shifts', totalCount, '', '#1d4ed8'],
+        ['Day shifts', dayCount, 'fType=01', '#b45309'],
+        ['Night shifts', nightCount, 'fType=02', '#3730a3'],
+        ['With overtime rules', otCount, '', '#0e7490'],
+        ['Cross Midnight', crossCount, '', '#7e22ce'],
+        ['Active', activeCount, 'fSt=Active', '#15803d'],
+        ['Inactive', inactiveCount, 'fSt=Inactive', '#b91c1c']
+    ];
+
+    const kpisEl = q('#kpis');
+    if (kpisEl) {
+        kpisEl.innerHTML = K.map(k => `<div class="card-box kpi" style="--c:${k[3]}" onclick="kf('${k[2]}')"><small>${k[0]}</small><b>${k[1]}</b></div>`).join('');
+    }
+}
+
+function kf(x) {
+    resetF(1);
+    if (x) {
+        const [a, b] = x.split('=');
+        const target = q('#' + a);
+        if (target) target.value = b;
+    }
+    page = 1;
+    render();
+}
+
+function resetF(qFlag) {
+    ['fType', 'fSt', 'fCo', 'fBr', 'fDp'].forEach(i => {
+        const el = q('#' + i);
+        if (el) el.selectedIndex = 0;
+    });
+    if (!qFlag) {
+        if (q('#ls')) q('#ls').value = '';
+        if (q('#gs')) q('#gs').value = '';
+        page = 1;
+        render();
+    }
+}
+
+['fType', 'fCo', 'fBr', 'fDp', 'fSt', 'pp'].forEach(i => {
+    const el = q('#' + i);
+    if (el) el.onchange = () => { page = 1; render(); };
+});
+
+['ls', 'gs'].forEach(i => {
+    const el = q('#' + i);
+    if (el) el.oninput = () => { page = 1; render(); };
+});
+
+/* ===== ADD / EDIT FORM POPUP ===== */
+function openForm(id) {
+    editing = id ? shifts.find(x => x.id == id) : null;
+    if (editing) {
+        if (q('#mt')) q('#mt').textContent = 'Edit Shift – ' + editing.id;
+        if (q('#type')) q('#type').value = editing.typeId || (editing.type.toLowerCase().includes('night') ? '02' : '01');
+        if (q('#sid')) q('#sid').value = editing.id;
+        if (q('#name')) q('#name').value = editing.name || '';
+        if (q('#desc')) q('#desc').value = editing.desc || '';
+        setTP(tpEl('start'), editing.start);
+        setTP(tpEl('end'), editing.end);
+        setTP(tpEl('late'), editing.late);
+        setTP(tpEl('absent'), editing.absent);
+        setTP(tpEl('bf'), editing.bf);
+        setTP(tpEl('bt'), editing.bt);
+        setTP(tpEl('early'), editing.early);
+        if (q('#cross')) q('#cross').checked = !!editing.cross;
+        setMS('company', editing.company || []);
+        setMS('branch', editing.branch || []);
+        setMS('dept', editing.dept || []);
+        setMS('emp', editing.emp || []);
+        if (q('#otRule')) q('#otRule').value = editing.otRuleId || '';
+        if (q('#eff')) q('#eff').value = editing.eff || new Date().toISOString().slice(0, 10);
+        if (q('#status')) q('#status').value = editing.status || 'Active';
+        if (q('#rem')) q('#rem').value = editing.rem || '';
+        q('#ov')?.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    } else {
+        if (q('#mt')) q('#mt').textContent = 'Add New Shift';
+        if (q('#type')) q('#type').selectedIndex = 0;
+        if (q('#sid')) q('#sid').value = '';
+        if (q('#name')) q('#name').value = '';
+        if (q('#desc')) q('#desc').value = '';
+        setTP(tpEl('start'), '09:00:00 AM');
+        setTP(tpEl('end'), '06:00:00 PM');
+        setTP(tpEl('late'), '09:15:00 AM');
+        setTP(tpEl('absent'), '11:00:00 AM');
+        setTP(tpEl('bf'), '01:00:00 PM');
+        setTP(tpEl('bt'), '02:00:00 PM');
+        setTP(tpEl('early'), '05:30:00 PM');
+        if (q('#cross')) q('#cross').checked = false;
+        setMS('company', []);
+        setMS('branch', []);
+        setMS('dept', []);
+        setMS('emp', []);
+        if (q('#otRule')) q('#otRule').selectedIndex = 0;
+        if (q('#eff')) q('#eff').value = new Date().toISOString().slice(0, 10);
+        if (q('#status')) q('#status').value = 'Active';
+        if (q('#rem')) q('#rem').value = '';
+
+        // Fetch real next shift code from database
+        jQuery.get('/HRMATDShifts/GenerateNextCode', function (code) {
+            if (q('#sid')) q('#sid').value = code || '';
+        });
+
+        q('#ov')?.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+    qAll('.err').forEach(e => e.classList.remove('err'));
+}
+
+const closeForm = () => {
+    q('#ov')?.classList.remove('open');
+    document.body.style.overflow = '';
+};
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeForm();
+});
+
+/* ===== SAVE SHIFT TO DATABASE ===== */
+function save() {
+    const sid = (q('#sid')?.value || '').trim();
+    const name = (q('#name')?.value || '').trim();
+    const eff = (q('#eff')?.value || '').trim();
+
+    const bad = [
+        ['#sid', !sid],
+        ['#name', !name],
+        ['#eff', !eff]
+    ].filter(b => b[1]);
+
+    qAll('.err').forEach(e => e.classList.remove('err'));
+    if (bad.length) {
+        bad.forEach(b => q(b[0])?.classList.add('err'));
+        return toast('Please fill in the required fields highlighted in red');
+    }
+
+    const startVal = getTP(tpEl('start'));
+    const endVal = getTP(tpEl('end'));
+    const isCross = q('#cross')?.checked || false;
+    if (mins(startVal) > mins(endVal) && !isCross) {
+        return toast('End is earlier than start – please check "Cross Midnight / Next Day"');
+    }
+
+    // Calculate lunch break hour
+    let lunchBreak = 0;
+    try {
+        const bfM = mins(getTP(tpEl('bf')));
+        const btM = mins(getTP(tpEl('bt')));
+        let diff = btM - bfM;
+        if (diff < 0) diff += 1440;
+        lunchBreak = Math.round((diff / 60) * 100) / 100;
+    } catch (e) { }
+
+    const postData = {
+        AutoId: editing ? editing.autoId : 0,
+        ShiftCode: sid,
+        ShiftName: name,
+        ShiftShortName: q('#desc')?.value.trim() || '',
+        Description: q('#desc')?.value.trim() || '',
+        ShiftTypeId: q('#type')?.value || '',
+        ShiftStartTime: startVal,
+        ShiftEndTime: endVal,
+        LateTime: getTP(tpEl('late')),
+        AbsentTime: getTP(tpEl('absent')),
+        LunchOutTime: getTP(tpEl('bf')),
+        LunchInTime: getTP(tpEl('bt')),
+        LunchBreakHour: lunchBreak,
+        EarlyLeaveTime: getTP(tpEl('early')),
+        IsCrossMidnight: isCross,
+        CompanyIdsList: MS['company'] || [],
+        BranchIdsList: MS['branch'] || [],
+        DepartmentIdsList: MS['dept'] || [],
+        EmployeeIdsList: MS['emp'] || [],
+        OvertimeRuleID: q('#otRule')?.value || '',
+        Wef: eff,
+        IsActiveStatus: q('#status')?.value || 'Active',
+        Remarks: q('#rem')?.value.trim() || ''
+    };
+
+    const token = q('input[name="__RequestVerificationToken"]')?.value || '';
+
+    jQuery.ajax({
+        url: '/HRMATDShifts/Setup',
+        type: 'POST',
+        data: postData,
+        headers: token ? { 'RequestVerificationToken': token } : {},
+        success: function (res) {
+            if (res.isSuccess) {
+                toast(res.message || 'Shift saved successfully');
+                closeForm();
+                loadShifts();
+                loadDashboardCount();
+            } else {
+                toast(res.message || 'Save failed');
+            }
+        },
+        error: function (xhr) {
+            toast('Failed to save: ' + (xhr.responseText || xhr.statusText));
+        }
+    });
+}
+
+/* ===== DELETE SHIFT FROM DATABASE ===== */
+function del(id) {
+    if (confirm('Delete shift ' + id + '?')) {
+        const token = q('input[name="__RequestVerificationToken"]')?.value || '';
+        jQuery.ajax({
+            url: '/HRMATDShifts/Delete',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify([id]),
+            headers: token ? { 'RequestVerificationToken': token } : {},
+            success: function (res) {
+                if (res.isSuccess) {
+                    toast(res.message || 'Shift deleted successfully');
+                    loadShifts();
+                    loadDashboardCount();
+                } else {
+                    toast(res.message || 'Delete failed');
+                }
+            },
+            error: function (xhr) {
+                toast('Failed to delete: ' + (xhr.responseText || xhr.statusText));
+            }
+        });
+    }
+}
+
+function toast(m) {
+    const t = q('#toast');
+    if (!t) return;
+    t.textContent = m;
+    t.style.display = 'block';
+    clearTimeout(t.h);
+    t.h = setTimeout(() => t.style.display = 'none', 3000);
+}
+
+function exportCSV() {
+    const H = ['ID', 'Name', 'Type', 'Start', 'End', 'Late', 'Absent', 'Break From', 'Break To', 'Early Leave', 'Applicable To', 'Overtime', 'Effective From', 'Status'];
+    const r = filtered().map(s => {
+        const compNames = getNamesList('company', s.company);
+        const brNames = getNamesList('branch', s.branch);
+        const deptNames = getNamesList('dept', s.dept);
+        const compStr = compNames.length ? compNames.join('; ') : 'All Company';
+        const brStr = brNames.length ? brNames.join('; ') : 'All Branch';
+        const deptStr = deptNames.length ? deptNames.join('; ') : 'All Department';
+        const applSummary = `Company: ${compStr} | Branch: ${brStr} | Department: ${deptStr}`;
+        return [
+            s.id, s.name, s.type, s.start, s.end, s.late, s.absent, s.bf, s.bt, s.early, applSummary, s.otRule, s.eff, s.status
+        ].map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',');
+    });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([[H.join(','), ...r].join('\n')], { type: 'text/csv;charset=utf-8;' }));
+    a.download = 'shifts.csv';
+    a.click();
+}
+
+// Expose handlers globally so onclick attributes work
+window.openForm = openForm;
+window.closeForm = closeForm;
+window.save = save;
+window.del = del;
+window.resetF = resetF;
+window.kf = kf;
+window.gp = gp;
+window.exportCSV = exportCSV;
+
+// Initial Load from Database on page ready
+function initPage() {
+    renderSortHeaders();
+    
+    const floatingPop = q('#applFloatingPopover');
+    if (floatingPop) {
+        floatingPop.onmouseenter = () => clearTimeout(applPopTimeout);
+        floatingPop.onmouseleave = hideApplPopover;
+    }
+    
+    loadShifts();
+    loadDashboardCount();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPage);
+} else {
+    initPage();
+}
+</script>
 }

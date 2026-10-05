@@ -1,4 +1,4 @@
-﻿@model GCTL.Core.ViewModels.HrmAtdShifts.HrmAtdShiftSetupViewModel
+@model GCTL.Core.ViewModels.HrmAtdShifts.HrmAtdShiftSetupViewModel
 
 @{
     var isEditing = Model.AutoId > 0;
@@ -296,7 +296,94 @@
                                        class="form-control form-control-sm" name="LunchBreakHour" />
                             </div>
                         </div>
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="form-group">
+                                <label for="EarlyLeaveTimeInput" class="form-label">Early Leave Before</label>
+                                <div class="time-picker-wrapper">
+                                    <div id="EarlyLeaveTimeInput" class="time-picker-container w-100 p-0 m-0"></div>
+                                </div>
+                                <input type="hidden"
+                                       value="@(isEditing && !string.IsNullOrEmpty(Model.EarlyLeaveTime) ? Model.EarlyLeaveTime : null)"
+                                       id="EarlyLeaveTime" name="EarlyLeaveTime" />
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-4 d-flex align-items-center mt-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" asp-for="IsCrossMidnight" id="IsCrossMidnight">
+                                <label class="form-check-label fw-bold" for="IsCrossMidnight">
+                                    Cross Midnight / Next Day
+                                </label>
+                            </div>
+                        </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Overtime Rules Section -->
+            <div class="mb-3">
+                <div class="bg-light text-dark py-1 px-4">
+                    <i class="fas fa-clock me-2"></i> Overtime Rules
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="form-group">
+                                <label asp-for="OvertimeRuleID" class="form-label">Overtime Rule</label>
+                                <select asp-for="OvertimeRuleID" class="form-control form-control-sm select2" asp-items="ViewBag.OvertimeRuleDD">
+                                    <option value="">Select Overtime Rule</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Applicable To Section -->
+            <div class="mb-3">
+                <div class="bg-light text-dark py-1 px-4">
+                    <i class="fas fa-users me-2"></i> Applicable To
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="form-group">
+                                <label for="CompanyIdsList" class="form-label">Company</label>
+                                <select asp-for="CompanyIdsList" multiple="multiple" class="form-control form-control-sm select2">
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="form-group">
+                                <label for="BranchIdsList" class="form-label">Branch</label>
+                                <select asp-for="BranchIdsList" multiple="multiple" class="form-control form-control-sm select2">
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="form-group">
+                                <label for="DepartmentIdsList" class="form-label">Department</label>
+                                <select asp-for="DepartmentIdsList" multiple="multiple" class="form-control form-control-sm select2">
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="form-group">
+                                <label for="EmployeeIdsList" class="form-label">Employee</label>
+                                <select asp-for="EmployeeIdsList" multiple="multiple" class="form-control form-control-sm select2">
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="form-group">
+                                <label asp-for="IsActiveStatus" class="form-label">Activity Status</label>
+                                <select asp-for="IsActiveStatus" class="form-control form-control-sm">
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>

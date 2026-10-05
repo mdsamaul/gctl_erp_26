@@ -26,5 +26,13 @@ namespace GCTL.Data.Models
         public string Lip { get; set; }
         public string Lmac { get; set; }
         public DateTime? ModifyDate { get; set; }
+        public string EarlyLeaveTime { get; set; }
+        public bool? IsCrossMidnight { get; set; }
+        public string CompanyIds { get; set; }
+        public string BranchIds { get; set; }
+        public string DepartmentIds { get; set; }
+        public string EmployeeIds { get; set; }
+        public string OvertimeRuleId { get; set; }
+        public bool? IsActive { get; set; }
     }
 }

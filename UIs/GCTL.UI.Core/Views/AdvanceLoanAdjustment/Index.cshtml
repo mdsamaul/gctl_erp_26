@@ -1,4 +1,4 @@
-﻿@model GCTL.UI.Core.ViewModels.AdvanceLoanAdjustment.AdvanceLoanAdjustmentViewModel
+@model GCTL.UI.Core.ViewModels.AdvanceLoanAdjustment.AdvanceLoanAdjustmentViewModel
 @{
 	Model.Breadcrumb = "AdvanceLoanAdjustment";
 	Model.PageTitle = "Advance Loan Adjustment";
@@ -190,29 +190,13 @@
          cursor: pointer;
      }
 
-    #advancePayTable_filter{
-        margin-bottom:0px !important;
-    }
-
-    #advancePayTable_length{
-        display:inline !important;
-    }
-
-
-    #advancePayTable_wrapper .dataTables_info,
-    #advancePayTable_wrapper .dataTables_paginate {
-        display: inline-flex !important;
-        align-items: center;
-        margin: 0 !important;
-    }
-
-    #advancePayTable_wrapper .dataTables_paginate {
-        float: right;
+    #advancePayTable_filter {
+        margin: 0px !important;
     }
 
   
 </style>
-<div class="container-fluid">
+<div class="container-fluid" style="margin-top:50px;">
     <partial name="_PageHeader" model="Model"></partial>
 </div>
 
@@ -249,10 +233,10 @@
                     <div class="col-12 col-sm-7 p-1 ">
                      
                             <div class="custom-multiselect">
-                                <input type="text" class="multiselect-input form-control-sm" id="companyMultiselectInput" placeholder="Search companies...">
-                                <i class="fas fa-chevron-down multiselect-arrow" id="companyMultiselectArrow"></i>
+                                <input type="text" class="multiselect-input form-control-sm" id="companyMultiselectInput" placeholder="Search companies..." disabled readonly style="background-color: #e9ecef; cursor: not-allowed;">
+                                <i class="fas fa-chevron-down multiselect-arrow" id="companyMultiselectArrow" style="display:none;"></i>
 
-                                <div class="multiselect-dropdown" id="companyMultiselectDropdown" style="position:absolute; z-index:1000; background:#fff; border:1px solid #ccc; width:100%; max-height:250px; overflow-y:auto;"></div>
+                                <div class="multiselect-dropdown" id="companyMultiselectDropdown" style="position:absolute; z-index:1000; background:#fff; border:1px solid #ccc; width:100%; max-height:250px; overflow-y:auto; display:none;"></div>
                             </div>
 
                     </div>
@@ -565,6 +549,14 @@
                     <b style="white-space: nowrap;">Modify Date: <span id="modifyDateshow"></span></b>
                 </div>
             </div>
+               
+                <div class="btn-toolbar d-flex justify-content-end" style="padding-right: 70px !important;">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-default success-btn js-Advance-loan-adjustment-save" id="submitButton" data-toggle="tooltip" data-placement="bottom" title="Save">
+                            <i class="fa fa-save">&nbsp;</i> Save
+                        </button>
+                    </div>
+                </div>
 
          </div>
 

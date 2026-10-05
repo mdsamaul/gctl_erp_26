@@ -523,6 +523,10 @@
          "ObjectType": 0
       },
       {
+         "Name": "[dbo].[HRM_Def_OvertimeRule]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[HRM_Def_Performance]",
          "ObjectType": 0
       },

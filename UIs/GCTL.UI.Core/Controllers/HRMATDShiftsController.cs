@@ -1,4 +1,4 @@
-﻿
+
 using ClosedXML.Excel;
 using GCTL.Core.Data;
 using GCTL.Core.Helpers;
@@ -19,12 +19,30 @@ namespace GCTL.UI.Core.Controllers
         private readonly IHrmAtdShiftService hrmAtdShiftService;
         private readonly ICommonService commonService;
         private readonly IRepository<HrmDefShiftType> shiftService;
-        public HRMATDShiftsController(IHrmAtdShiftService hrmAtdShiftService, IRepository<HrmDefShiftType> shiftService, ICommonService commonService)
+        private readonly IRepository<HrmDefOvertimeRule> overtimeRuleService;
+        private readonly IRepository<CoreCompany> companyRepo;
+        private readonly IRepository<CoreBranch> branchRepo;
+        private readonly IRepository<HrmDefDepartment> deptRepo;
+        private readonly IRepository<HrmEmployee> empRepo;
+
+        public HRMATDShiftsController(
+            IHrmAtdShiftService hrmAtdShiftService, 
+            IRepository<HrmDefShiftType> shiftService, 
+            ICommonService commonService, 
+            IRepository<HrmDefOvertimeRule> overtimeRuleService,
+            IRepository<CoreCompany> companyRepo,
+            IRepository<CoreBranch> branchRepo,
+            IRepository<HrmDefDepartment> deptRepo,
+            IRepository<HrmEmployee> empRepo)
         {
             this.hrmAtdShiftService = hrmAtdShiftService;
             this.commonService = commonService;
             this.shiftService = shiftService;
-
+            this.overtimeRuleService = overtimeRuleService;
+            this.companyRepo = companyRepo;
+            this.branchRepo = branchRepo;
+            this.deptRepo = deptRepo;
+            this.empRepo = empRepo;
         }
 
 
@@ -58,8 +76,22 @@ namespace GCTL.UI.Core.Controllers
             //// Assign the shift types to ViewBag
             //ViewBag.ShiftTypeDD = new SelectList(shiftTypes, "Value", "Text");
 
-            ViewBag.ShiftTypeDD = new SelectList(shiftService.All().Select(x => new { id = x.ShiftTypeId, name = x.ShiftTypeName }).ToList(), "id", "name");
+            var companies = companyRepo.All().Select(x => new { id = x.CompanyCode, name = x.CompanyName }).ToList();
+            var branches = branchRepo.All().Select(x => new { id = x.BranchCode, name = x.BranchName }).ToList();
+            var depts = deptRepo.All().Select(x => new { id = x.DepartmentCode, name = x.DepartmentName }).ToList();
+            var emps = empRepo.All().Take(500).Select(x => new { id = x.EmployeeId, name = x.EmployeeId + " - " + ((x.FirstName ?? "") + " " + (x.LastName ?? "")).Trim() }).ToList();
+            var shiftTypes = shiftService.All().Select(x => new { id = x.ShiftTypeId, name = x.ShiftTypeName }).ToList();
+            var otRules = overtimeRuleService.All().Select(x => new { id = x.OvertimeRuleId, name = x.OvertimeRuleName }).ToList();
 
+            ViewBag.CompanyList = companies;
+            ViewBag.BranchList = branches;
+            ViewBag.DepartmentList = depts;
+            ViewBag.EmployeeList = emps;
+            ViewBag.ShiftTypeList = shiftTypes;
+            ViewBag.OvertimeRuleList = otRules;
+
+            ViewBag.ShiftTypeDD = new SelectList(shiftTypes, "id", "name");
+            ViewBag.OvertimeRuleDD = new SelectList(otRules, "id", "name");
 
             model.PageUrl = Url.Action(nameof(Index));
             return View(model);
@@ -195,11 +227,11 @@ namespace GCTL.UI.Core.Controllers
         #region TabeleLodaing
 
         [HttpGet]
-        public async Task<IActionResult> GetTableData()
+        public async Task<IActionResult> GetTableData(string searchText, string shiftType, string companyId, string branchId, string departmentId, string status)
         {
             try
             {
-                var list = await hrmAtdShiftService.GetAllAsync();
+                var list = await hrmAtdShiftService.GetGridDataAsync(searchText, shiftType, companyId, branchId, departmentId, status);
                 return PartialView("_Grid", list);
             }
             catch (Exception ex)
@@ -208,7 +240,62 @@ namespace GCTL.UI.Core.Controllers
             }
         }
 
-        //
+        [HttpGet]
+        public async Task<IActionResult> GetShifts(string searchText, string shiftType, string companyId, string branchId, string departmentId, string status)
+        {
+            try
+            {
+                var list = await hrmAtdShiftService.GetGridDataAsync(searchText, shiftType, companyId, branchId, departmentId, status);
+                
+                var result = list.Select(s => new {
+                    autoId = s.AutoId,
+                    id = s.ShiftCode,
+                    name = s.ShiftName,
+                    type = !string.IsNullOrEmpty(s.ShiftTypeName) ? s.ShiftTypeName : (s.ShiftTypeId == "02" || s.ShiftTypeId == "2" ? "Night" : "Day"),
+                    typeId = s.ShiftTypeId,
+                    desc = s.Description ?? s.ShiftShortName ?? "",
+                    start = s.ShiftStartTime != DateTime.MinValue ? s.ShiftStartTime.ToString("hh:mm:ss tt") : "09:00:00 AM",
+                    end = s.ShiftEndTime != DateTime.MinValue ? s.ShiftEndTime.ToString("hh:mm:ss tt") : "06:00:00 PM",
+                    late = s.LateTime != DateTime.MinValue ? s.LateTime.ToString("hh:mm:ss tt") : "09:15:00 AM",
+                    absent = s.AbsentTime != DateTime.MinValue ? s.AbsentTime.ToString("hh:mm:ss tt") : "11:00:00 AM",
+                    bf = s.LunchOutTime != DateTime.MinValue ? s.LunchOutTime.ToString("hh:mm:ss tt") : "01:00:00 PM",
+                    bt = s.LunchInTime != DateTime.MinValue ? s.LunchInTime.ToString("hh:mm:ss tt") : "02:00:00 PM",
+                    breakHour = s.LunchBreakHour,
+                    early = !string.IsNullOrEmpty(s.EarlyLeaveTime) ? s.EarlyLeaveTime : "05:30:00 PM",
+                    cross = s.IsCrossMidnight,
+                    company = !string.IsNullOrEmpty(s.CompanyIds) ? s.CompanyIds.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() : new List<string>(),
+                    branch = !string.IsNullOrEmpty(s.BranchIds) ? s.BranchIds.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() : new List<string>(),
+                    dept = !string.IsNullOrEmpty(s.DepartmentIds) ? s.DepartmentIds.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() : new List<string>(),
+                    emp = !string.IsNullOrEmpty(s.EmployeeIds) ? s.EmployeeIds.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() : new List<string>(),
+                    otRule = !string.IsNullOrEmpty(s.OvertimeRuleName) ? s.OvertimeRuleName : (!string.IsNullOrEmpty(s.OvertimeRuleID) ? s.OvertimeRuleID : "Not Applicable"),
+                    otRuleId = s.OvertimeRuleID,
+                    otMax = 4,
+                    eff = s.Wef != DateTime.MinValue ? s.Wef.ToString("yyyy-MM-dd") : DateTime.Now.ToString("yyyy-MM-dd"),
+                    status = !string.IsNullOrEmpty(s.IsActiveStatus) ? s.IsActiveStatus : (s.IsActive ? "Active" : "Inactive"),
+                    rem = s.Remarks ?? ""
+                });
+                return Json(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ex.Message);
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetDashboardCount()
+        {
+            try
+            {
+                var count = await hrmAtdShiftService.GetDashboardCountAsync();
+                return Json(count);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ex.Message);
+            }
+        }
+
         #endregion
 
 

@@ -7,7 +7,7 @@ namespace GCTL.Data.Models
 {
     public partial class HrmPaySalaryData
     {
-        public decimal Tc { get; set; }
+        public decimal AutoId { get; set; }
         public string EmployeeId { get; set; }
         public string GradeName { get; set; }
         public string BranchCode { get; set; }

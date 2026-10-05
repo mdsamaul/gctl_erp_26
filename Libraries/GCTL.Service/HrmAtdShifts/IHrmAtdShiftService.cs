@@ -1,4 +1,4 @@
-﻿using GCTL.Core.ViewModels.Common;
+using GCTL.Core.ViewModels.Common;
 using GCTL.Core.ViewModels.HrmAtdShifts;
 using GCTL.Data.Models;
 using System;
@@ -16,6 +16,8 @@ namespace GCTL.Service.HrmAtdShifts
         bool DeleteLeaveType(string id);
 
         Task<List<HrmAtdShiftSetupViewModel>> GetAllAsync();
+        Task<dynamic> GetDashboardCountAsync();
+        Task<List<HrmAtdShiftSetupViewModel>> GetGridDataAsync(string searchText, string shiftType, string companyId, string branchId, string departmentId, string status);
         Task<HrmAtdShiftSetupViewModel> GetByIdAsync(string code);
         Task<bool> SaveAsync(HrmAtdShiftSetupViewModel entityVM);
         Task<bool> UpdateAsync(HrmAtdShiftSetupViewModel entityVM);
