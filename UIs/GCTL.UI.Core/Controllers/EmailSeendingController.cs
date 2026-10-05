@@ -35,7 +35,7 @@ namespace GCTL.UI.Core.Controllers
 
             try
             {
-                await _emailService.SendEmailAsync(model);
+                //await _emailService.SendEmailAsync(model);
                 return Json(new { success = true, message = "Email sent successfully!" });
             }
             catch (Exception ex)

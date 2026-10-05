@@ -47,7 +47,7 @@
         <div class="col-lg-4">
             <label asp-for="NoOfDay">No. of Days </label>
             <span class="text-danger"></span>
-            <input type="number"  asp-for="NoOfDay" class="form-control form-control-sm" tabindex="4"/>
+            <input type="number"  asp-for="NoOfDay" style="font-family:SutonnyMJ"  class="form-control form-control-sm" tabindex="4"/>
         </div>
         <div class="col-lg-4">
           
@@ -59,8 +59,8 @@
         <div class="col-lg-4">
             <label asp-for="Ymwd">YMWD </label>
           
-             <select class="form-control form-control-sm selectpickerLeaveTYpe" asp-for="Ymwd" asp-items="@(ViewBag.YmwdOptions as SelectList)"
-                     tabindex="6">
+             <select class="form-control form-control-sm selectpicker" asp-for="Ymwd" asp-items="@(ViewBag.YmwdOptions as SelectList)"
+                    style="font-family:SutonnyMJ"  tabindex="6">
                
             </select> 
    
@@ -75,7 +75,7 @@
 
             
             <input type="hidden" id="WefHidden" name="Wef" />
-           <input type="text" id="WefDate" placeholder="dd/MM/yyyy"   asp-for="Wef" class="form-control form-control-sm datepicker" required tabindex="7" />
+           <input type="text" id="WefDate" placeholder="dd/MM/yyyy"   asp-for="Wef" style="font-family:SutonnyMJ " class="form-control form-control-sm datepicker" required tabindex="7" />
          
         </div>
         <div class="col-lg-6">
@@ -116,3 +116,27 @@
         </button>
     </div>
 </div>
+
+<style>
+    ::placeholder {
+        font-family:  Times New Roman;
+    }
+
+    /* For cross-browser support */
+    ::-webkit-input-placeholder {
+        font-family: Times New Roman;
+    }
+
+    ::-moz-placeholder {
+        font-family: Times New Roman;
+    }
+
+    :-ms-input-placeholder {
+        font-family: Times New Roman;
+    }
+
+    :-moz-placeholder {
+        font-family: Times New Roman;
+    }
+
+</style>

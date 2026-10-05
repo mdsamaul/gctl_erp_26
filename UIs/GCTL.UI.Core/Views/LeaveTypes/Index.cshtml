@@ -20,8 +20,17 @@
                         <partial name="_Toolbars" model="new ToobarModel() { Title = Model.Breadcrumb, Code = Model.Code, Name = Model.Setup.Name }" />
                     </div>
                     <div class="card-body px-2">
+                       @*  <form asp-action="Setup" id="leaveType-form">
+                           
+                             <div class="js-leaveType-form-container">
+                                <partial name="_Setup" model="Model.Setup" />
+                            </div> 
+                        </form> *@
                         <form asp-action="Setup" method="post" id="leaveType-form"  asp-controller="LeaveTypes">
-                            <partial name="_Setup" model="Model.Setup" />
+
+                            
+                                <partial name="_Setup" model="Model.Setup" />
+                            
                         </form>
                     </div>
                 </div>
@@ -30,7 +39,11 @@
                 <div class="card">
                     <div class="card-body p-2 pt-3">
                         <div class="js-leaveType-grid-container">
-                            @await Html.PartialAsync("_Grid", Model.LeaveTypeList) 
+                            
+                                <!-- Display the list in the partial view -->
+                                  @await Html.PartialAsync("_Grid", Model.LeaveTypeList) 
+                           
+                            @*     <partial name="_Grid" />   *@
                         </div>
                     </div>
                 </div>

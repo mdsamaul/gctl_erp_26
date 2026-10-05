@@ -1,13 +1,14 @@
-﻿using GCTL.Core.ViewModels.EmailSettingsViewModel;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace GCTL.Service.EmailService
 {
-    public interface IEmailService
+    public interface IEmailService 
     {
-        Task SendEmailAsync(EmailRequestDTO model);
-        string GenerateLeaveRequestEmail(string employeeName, string leaveType, string startDate, string endDate, string reason);
-        string GenerateLeaveApprovalEmail(string employeeName, string leaveType, string startDate, string endDate);
-        string GenerateLeaveRejectionEmail(string employeeName, string leaveType, string rejectionReason);
-
+        Task<bool> SendEmailAsync(string to, string subject, string body);
+        
     }
 }

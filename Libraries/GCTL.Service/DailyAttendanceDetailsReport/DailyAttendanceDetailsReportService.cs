@@ -1,4 +1,4 @@
-﻿using ClosedXML.Excel;
+using ClosedXML.Excel;
 using Dapper;
 using GCTL.Core.Data;
 using GCTL.Core.ViewModels.DailyAttendanceDetailsReport;
@@ -42,9 +42,20 @@ namespace GCTL.Service.DailyAttendanceDetailsReport
         {
             var result = new DailyAttendanceDetailsResultDto();
 
-            var branchCsv = filter.BranchCodes != null ? string.Join(",", filter.BranchCodes) : null;
-            var deptCsv = filter.DepartmentCodes != null ? string.Join(",", filter.DepartmentCodes) : null;
-            var empCsv = filter.EmployeeIds != null ? string.Join(",", filter.EmployeeIds) : null;
+            var branchCsv = filter.BranchCodes != null && filter.BranchCodes.Any()
+                ? string.Join(",", filter.BranchCodes.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()))
+                : null;
+            var deptCsv = filter.DepartmentCodes != null && filter.DepartmentCodes.Any()
+                ? string.Join(",", filter.DepartmentCodes.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()))
+                : null;
+            var empCsv = filter.EmployeeIds != null && filter.EmployeeIds.Any()
+                ? string.Join(",", filter.EmployeeIds.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()))
+                : null;
+
+            var companyCode = string.IsNullOrWhiteSpace(filter.CompanyCode) ? null : filter.CompanyCode.Trim();
+            var loginEmployeeId = string.IsNullOrWhiteSpace(filter.LoginEmployeeId) ? null : filter.LoginEmployeeId.Trim();
+            var accessCodeId = string.IsNullOrWhiteSpace(filter.AccessCodeId) ? null : filter.AccessCodeId.Trim();
+            var reportType = string.IsNullOrWhiteSpace(filter.ReportType) ? "Present" : filter.ReportType.Trim();
 
             DateTime? fromDate = null;
             if (!string.IsNullOrWhiteSpace(filter.FromDate) &&
@@ -55,17 +66,27 @@ namespace GCTL.Service.DailyAttendanceDetailsReport
             await conn.OpenAsync();
 
             var param = new DynamicParameters();
-            param.Add("@CompanyCode", filter.CompanyCode, DbType.String);
-            param.Add("@BranchCodes", branchCsv, DbType.String);
-            param.Add("@DepartmentCodes", deptCsv, DbType.String);
-            param.Add("@EmployeeIds", empCsv, DbType.String);
+            param.Add("@CompanyCode", companyCode, DbType.String);
+            param.Add("@BranchCodes", string.IsNullOrWhiteSpace(branchCsv) ? null : branchCsv, DbType.String);
+            param.Add("@DepartmentCodes", string.IsNullOrWhiteSpace(deptCsv) ? null : deptCsv, DbType.String);
+            param.Add("@EmployeeIds", string.IsNullOrWhiteSpace(empCsv) ? null : empCsv, DbType.String);
             param.Add("@FromDate", fromDate, DbType.Date);
-            param.Add("@ReportType", filter.ReportType, DbType.String);
-            param.Add("@LoginEmployeeId", filter.LoginEmployeeId, DbType.String);
-            param.Add("@AccessCodeId", filter.AccessCodeId, DbType.String);
+            param.Add("@ReportType", reportType, DbType.String);
+            param.Add("@LoginEmployeeId", loginEmployeeId, DbType.String);
+            param.Add("@AccessCodeId", accessCodeId, DbType.String);
+
+            string spName = filter.ReportType switch
+            {
+                "Present" => "usp_Attendance_Present",
+                "Absent" => "usp_Attendance_Absent",
+                "Late" => "usp_Attendance_Late",
+                "MissingCheckOut" => "usp_Attendance_MissingCheckOut",
+                "InOut" or "EarlyLeave" => "usp_Attendance_InOut",
+                _ => "RPT_GetDailyAttendanceDetailsReport"
+            };
 
             using var multi = await conn.QueryMultipleAsync(
-                "RPT_GetDailyAttendanceDetailsReport",
+                spName,
                 param,
                 commandType: CommandType.StoredProcedure);
 

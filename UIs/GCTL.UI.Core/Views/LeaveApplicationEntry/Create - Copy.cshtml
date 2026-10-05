@@ -1,0 +1,492 @@
+﻿@model GCTL.Core.ViewModels.HrmLeaveApplicationEntry.LeaveApplicationViewModel
+
+
+
+@{
+    ViewData["Title"] = "Create";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+
+@* <div class="container"> *@
+
+
+
+<div class="row" >
+    <div class="col-lg-8">
+        @* <div class="bg-light"> *@
+        @* <div class="container mt-4"> *@
+        <!-- Breadcrumb -->
+        <partial name="_PageHeader" model="@Model" />
+
+
+        <!-- Main Card -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Manual Leave Application Entry</h5>
+                <div>
+                   @*  <button class="btn btn-light"><i class="fas fa-trash"></i></button>
+                    <button class="btn btn-light"><i class="fas fa-print"></i></button>
+                    <button class="btn btn-light"><i class="fas fa-star"></i></button> *@
+                </div>
+            </div>
+
+            <div class="card-body">
+                <form id="leaveApplicationForm" method="post">
+
+
+                    <!-- Employee Info Section -->
+                    <style>
+                        .gradient-bg {
+                             background: linear-gradient(to right, #e1f5fe, #fff);
+                            padding: 10px;
+                            border-radius: 8px;
+                            color: black;
+                        }
+
+                        fieldset {
+                            border: 0px solid rgba(0, 0, 0, 0.2); /* Light border for the fieldset */
+                        }
+
+                        legend {
+                            font-weight: bold;
+                            font-size: 1.2em;
+                            color: black; /* Legend text color */
+                        }
+                    </style>
+
+                    <div class="gradient-bg mb-2 rounded p-3">
+                       @*  <fieldset>
+                            <legend class="fs-5 mb-3">Employee Information</legend> *@
+
+                            <!-- Company Dropdown -->
+                            <div class="row mb-1">
+                                <label class="col-2 text-right pr-0 col-form-label-sm required">Company</label>
+                                <div class="col-4">
+                                    <select id="companyDropdown" name="selectedItem" class=" form-control  form-control-sm selectpickerLeave">
+                                        <option value="">--Select--</option>
+                                        @foreach (var item in ViewBag.company)
+                                        {
+                                            @*string sele = "";
+                                            var isOnlyOption = (ViewBag.company.Count == 1);
+                                            if (isOnlyOption)
+                                            {
+                                                sele = "selected";
+                                            }
+                                            <option value="@item.CompanyCode" @@sele )>
+                                                @item.CompanyShortName
+                                            </option>*@
+
+
+
+                                            <option value="@item.CompanyCode">@item.CompanyName</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Employee ID and Name -->
+                            <div class="row mb-1">
+                                <label class="col-2 text-right pr-0 col-form-label-sm">Employee ID</label>
+                                <div class="col-4">
+
+
+                                   @*  <select asp-for="EmployeeId" tabindex="3" id="EmployeeDropDownID" class="form-control form-control-sm selectpickerLeave js-" required asp-items="@ViewBag.EmployeeDD as SelectList">
+                                        <option value="">--Select Employee ID--</option>
+                                    </select> *@
+
+
+                                    <select id="employeeDropdown" class=" form-control  form-control-sm selectpickerLeave">
+                                        <option value="">--Select Employee--</option>
+                                    </select> 
+                                </div>
+
+                                <label class="col-2 text-right pr-0 col-form-label-sm">Employee Name</label>
+                                <div class="col-4">
+                                <input id="employeeName" type="text" class="form-control form-control-sm" value="" readonly style="border: none; outline: none; background: transparent;">
+                                </div>
+                            </div>
+
+                            <!-- Designation and Department -->
+                            <div class="row mb-1">
+                                <label class="col-2 text-right pr-0 col-form-label-sm">Designation</label>
+                                <div class="col-4">
+                                <input id="designation" type="text" class="form-control form-control-sm" value="" readonly style="border: none; outline: none; background: transparent;">
+                                </div>
+
+                                <label class="col-2 text-right pr-0 col-form-label-sm">Department</label>
+                                <div class="col-4">
+                                <input id="department" type="text" class="form-control form-control-sm" value="" readonly style="border: none; outline: none; background: transparent;">
+                                </div>
+                            </div>
+                        @* </fieldset> *@
+                    </div>
+
+
+
+
+
+
+                    <div class="row mb-2">
+
+                        <input id="leaveAppEntryCode" asp-for="LeaveAppEntryCode" type="text" class="form-control" value="" hidden>
+
+                        <label class="col-2 text-right pr-0 col-form-label-sm">Entry ID</label>
+                        <div class="col-4">
+                            @* <input asp-for="EntryId" id="entryId" type="text" class="form-control" value="@ViewBag.entryId" readonly> *@
+                            <input asp-for="EntryId" id="entryId" type="text" class="form-control form-control-sm" readonly>
+                        </div>
+                    </div>
+
+                    <!-- Leave Application Section -->
+                    <div class="row mb-2">
+                        <label class="col-2 text-right pr-0 col-form-label-sm required">Immediate Supervisor</label>
+                        <div class="col-4">
+                            <select id="immediateSupervisor" class="form-control  form-control-sm selectpickerLeave">
+                                <option selected></option>
+                            </select>
+                        </div>
+                        <label class="col-2 text-right pr-0 col-form-label-sm">Head of Department</label>
+                        <div class="col-4">
+                            <select id="headOfDepartment" class="form-control  form-control-sm selectpickerLeave">
+                                <option selected></option>
+                            </select>
+                        </div>
+                    </div>
+
+
+
+
+
+
+                    <div class="row mb-2">
+                        <label class="col-2 text-right pr-0 col-form-label  form-control-sm required">Apply Leave Format</label>
+                        <div class="col-4">
+                            <select class="form-control  form-control-sm selectpickerLeave" id="applyLeaveFormat" name="selectedItem">
+                                <option selected>--Select Apply Leave Format--</option>
+                                <option value="halfDayLeave">Half Leave</option>
+                                <option value="fullDayLeave">Full Leave</option>
+                                <option value="shortLeave">Short Leave</option>
+                            </select>
+                        </div>
+                        <label class="col-2 text-right pr-0 col-form-label-sm ">Leave Type</label>
+                        <div class="col-4">
+                            <select id="leaveTypeDropdown" name="selectedItem" class="form-control selectpickerLeave form-control-sm">
+                                <option value="">--Select--</option>
+                                @foreach (var item in ViewBag.leaveType)
+                                {
+                                    <option value="@item.LeaveTypeCode">@item.Name</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="fullDayInputs" class="row mb-2" style="display: none;">
+                        <label class="col-2 text-right pr-0 col-form-label  form-control-sm required">From</label>
+                        <div class="col-4">
+                            <input type="date" id="fromDate" class="form-control  form-control-sm">
+                        </div>
+                        <label class="col-1 col-form-label">Day(s)</label>
+                        <div class="col-1">
+                            <input type="number" id="daysBetween" class="form-control  form-control-sm" readonly>
+                        </div>
+                        <label class="col-1 text-right pr-0 col-form-label  form-control-sm required">To</label>
+                        <div class="col-3">
+                            <input type="date" id="toDate" class="form-control  form-control-sm">
+                        </div>
+                    </div>
+
+                    <div id="halfDayInputs" class="row mb-2" style="display: none;">
+                        <label class="col-2 text-right pr-0 col-form-label  form-control-sm">Half Day</label>
+                        <div class="col-5">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="halfDayCheckbox">
+                                <label class="form-check-label" for="halfDayCheckbox">Half Day</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="halfDayType" id="firstHalf">
+                                <label class="form-check-label" for="firstHalf">First Half</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="halfDayType" id="secondHalf">
+                                <label class="form-check-label" for="secondHalf">Second Half</label>
+                            </div>
+                        </div>
+                        <label class="col-1 text-right pr-0 col-form-label  form-control-sm required">Date</label>
+                        <div class="col-4">
+                            <input type="date" id="halfDate" class="form-control  form-control-sm">
+                        </div>
+
+                    </div>
+
+                    <div id="oneDayInputs" class="row mb-2" style="display: none;">
+                        <label class="col-2 text-right pr-0 col-form-label  form-control-sm required">From</label>
+                        <div class="col-4">
+                            <input type="time" id="fromTime" class="form-control  form-control-sm">
+                        </div>
+                        <label class="col-1 col-form-label">Hour(s)</label>
+                        <div class="col-1">
+                            <input type="text" id="hoursBetween" class="form-control  form-control-sm" readonly>
+                        </div>
+                        <label class="col-1 text-right pr-0 col-form-label-sm  required">To</label>
+                        <div class="col-3">
+                            <input type="time" id="toTime" class="form-control  form-control-sm">
+                        </div>
+                    </div>
+
+
+
+
+
+
+                    <div class="row mb-2">
+                        <label class="col-2 text-right pr-0 col-form-label-sm">File Attachment</label>
+                        <div class="col-4">
+                            <input type="file" class="form-control  form-control-sm" id="leaveFile">
+                        </div>
+                    </div>
+
+                    <div class="row mb-2">
+                        <label class="col-2 text-right pr-0 col-form-label-sm">Reason</label>
+                        <div class="col-4">
+                            <textarea asp-for="Reason" class="form-control  form-control-sm" rows="3"></textarea>
+                        </div>
+                        <div class="col-6 d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary h-50">Leave Apply</button>
+                        </div>
+                    </div>
+
+
+
+
+
+
+                    <div id="calendarContainer" class="row mb-2">
+                        @* style="display: none; " *@
+                        <div class="col-12">
+                            <div id="calendar"></div>
+                        </div>
+                    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+                </form>
+            </div>
+        </div>
+        @* </div> *@
+
+
+        @* </div> *@
+
+    
+     
+
+        @* <div class="row ms-2"> *@
+
+            
+        
+       
+        
+     </div>
+
+    <div class="col-lg-4">
+        <!-- First Card: Leave Status Table -->
+        <div class="card mt-5">
+            <div class="card-header">
+                <h5 class="mt-0"><b>Leave Status</b></h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="leaveAvailableTable" class="display table table-striped table-bordered" style="width:100%; text-align:center">
+                        <thead>
+                            <tr>
+                                <th>LN</th>
+                                <th>YLE</th>
+                                <th>TAK</th>
+                                <th>BAL</th>
+                                <th>Sh.L</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Data rows will go here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Second Card: Approved Leave Table -->
+        <div class="card mt-2">
+            <div class="card-header">
+                <h5 class="mt-0"><b>Approved Leave</b></h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="leaveTakenTable" class="display table table-striped table-bordered" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                                <th>Approved Days</th>
+                                <th>No of Days</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Data rows will go here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    </div>
+
+    <hr/>
+    <hr/>
+
+
+
+<div class="row mt-4">
+    <div class="col-lg-12">
+        <div class=" mt-2 table-responsive">
+            <table id="leaveApplicationsTable" class="display table table-striped table-bordered " style="width:100%">
+                <thead>
+                    <tr>
+
+
+                        <th>Action</th>
+
+                        <th>Leave Id</th>
+
+                        <th>Leave Format</th>
+                        <th>Approval Status</th>
+                        <th>Employee ID</th>
+                        <th>Name</th>
+                        <th>Leave Type</th>
+                        <th>Attested File</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Calendar Dates</th>
+                        <th>No Of Days</th>
+                        <th>Reason</th>
+                        <th>Sel.</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+    <div class="col-lg-0"></div>
+</div>
+@* </div> *@
+
+
+
+@* </div> *@
+
+<style>
+    #leaveApplicationsTable th, #leaveApplicationsTable td {
+        
+        white-space: normal;
+        word-wrap: break-word;
+    }
+
+
+
+    /* Custom padding for DataTable cells */
+    .dt-custom-padding {
+        padding: 3px 3px !important; /* Vertical padding 12px, horizontal padding 8px */
+    }
+
+
+        .dt-custom-padding.sorting, 
+        #leaveAvailableTable thead th {
+           /*  padding: 12px 2px !important;  *//* Increased header padding */
+            font-weight: bold;
+        }
+        /* Custom padding for DataTable header cells */
+       /*  .dt-custom-padding.sorting {
+            padding: 12px 8px !important;
+        } */
+
+        /* Optional: Add hover effect */
+        .dt-custom-padding:hover {
+            background-color: #f5f5f5;
+        }
+
+    /* Optional: Align text in cells */
+    #leaveAvailableTable td {
+        text-align: center;
+    }
+
+    #leaveAvailableTable th {
+        text-align: center;
+    }
+
+
+    .dataTable tbody tr:nth-child(odd) {
+        background-color: #f9f9f9; /* Light gray for odd rows */
+    }
+
+    .dataTable tbody tr:nth-child(even) {
+        background-color: #d9b7b71c; /* White for even rows */
+    }
+  
+
+   /*  input[type="date"]::-webkit-datetime-edit {
+        display: none;
+    }
+
+    input[type="date"]::before {
+        content: attr(data-display);
+        width: 100%;
+        color: black;
+    }
+
+    input[type="date"]:valid::before {
+        content: attr(data-display);
+    } */
+
+
+ 
+
+
+</style>
+
+
+
+
+
+
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+
+
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.4/index.global.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.4/index.global.min.css">
+
+
+    <script src="~/js/pages/leaveEntryNew.js"></script>
+
+
+
+     @* <script src="~/js/pages/LeaveApplicationEntry.js"></script>  *@
+
+}
+

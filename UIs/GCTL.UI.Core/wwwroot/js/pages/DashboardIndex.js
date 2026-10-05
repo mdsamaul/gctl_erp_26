@@ -1,4 +1,4 @@
-﻿(function ($) {
+(function ($) {
     $.DashboardIndex = function (options) {
 
         var settings = $.extend({ baseUrl: "/" }, options);
@@ -425,8 +425,26 @@
             animateCount("#lvPending", s.pending);
         }
 
+        // ── Leave Types Fixed Display Sequence ─────────────────
+        var LEAVE_SEQUENCE = ['CL', 'SL', 'UL', 'ML', 'PL', 'MARL', 'HL', 'UMRL'];
+
+        function sortLeaveTypesBySequence(types) {
+            if (!types || !Array.isArray(types)) return [];
+            return types.slice().sort(function (a, b) {
+                var aCode = ((a && a.shortName) || '').trim().toUpperCase();
+                var bCode = ((b && b.shortName) || '').trim().toUpperCase();
+                var aIdx = LEAVE_SEQUENCE.indexOf(aCode);
+                var bIdx = LEAVE_SEQUENCE.indexOf(bCode);
+                if (aIdx === -1) aIdx = 999;
+                if (bIdx === -1) bIdx = 999;
+                if (aIdx === bIdx) return aCode.localeCompare(bCode);
+                return aIdx - bIdx;
+            });
+        }
+
         // ── Build dynamic columns ──────────────────────────────
         function buildLeaveColumns(leaveTypes) {
+            leaveTypes = sortLeaveTypesBySequence(leaveTypes);
             if (leaveTable && $.fn.DataTable.isDataTable("#leaveSummaryTable")) {
                 leaveTable.destroy();
                 leaveTable = null;
@@ -586,7 +604,7 @@
                     dataSrc: function (json) {
                         renderLeaveSummary(json.summary);
 
-                        var newTypes = json.leaveTypes || [];
+                        var newTypes = sortLeaveTypesBySequence(json.leaveTypes || []);
                         if (JSON.stringify(newTypes) !== JSON.stringify(_leaveTypes)) {
                             _leaveTypes = newTypes;
                             setTimeout(function () {
@@ -777,7 +795,7 @@
                 }),
                 success: function (res) {
                     renderLeaveSummary(res.summary);
-                    _leaveTypes = res.leaveTypes || [];
+                    _leaveTypes = sortLeaveTypesBySequence(res.leaveTypes || []);
                     initLeaveTable(_leaveTypes);
                 },
                 error: function (xhr, err) {

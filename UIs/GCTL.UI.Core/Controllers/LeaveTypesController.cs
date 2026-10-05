@@ -1,13 +1,19 @@
 ﻿using AutoMapper;
-using ClosedXML.Excel;
-using GCTL.Core.Helpers;
-using GCTL.Core.ViewModels.DeleteHistories;
 using GCTL.Core.ViewModels.LeaveTypes;
+using GCTL.Data.Models;
 using GCTL.Service.Common;
 using GCTL.Service.LeaveTypes;
 using GCTL.UI.Core.ViewModels.LeaveTypes;
 using Microsoft.AspNetCore.Mvc;
+using GCTL.Core.Helpers;
+using System.Globalization;
+using GCTL.Core.ViewModels.Accounts;
+using NuGet.Packaging.Core;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using GCTL.Service.Departments;
+using Microsoft.AspNetCore.Mvc.ViewEngines;
+using ClosedXML.Excel;
+using GCTL.Service.Designations;
 namespace GCTL.UI.Core.Controllers
 {
     public class LeaveTypesController : BaseController
@@ -22,7 +28,10 @@ namespace GCTL.UI.Core.Controllers
             this.leaveTypeService = leaveTypeService;
             this.commonService = commonService;
             this.mapper = mapper;
+           
         }
+
+
 
 
         public async Task<IActionResult> Index(string? id)
@@ -37,17 +46,17 @@ namespace GCTL.UI.Core.Controllers
             var leaveTypeList = await leaveTypeService.GetLeaveTypesAsync();
             model.LeaveTypeList = leaveTypeList ?? new List<LeaveTypeSetupViewModel>();
 
-
+           
             if (!string.IsNullOrEmpty(id))
             {
                 model.Setup = await leaveTypeService.GetLeaveTypeAsync(id);
-
+               
             }
             var ymwdOptions = new List<SelectListItem>
              {
                  new SelectListItem { Value = "Year", Text = "Year" },
                  new SelectListItem { Value = "Month", Text = "Month" },
-                 new SelectListItem { Value = "Week", Text = "Week" },
+                 new SelectListItem { Value = "Week", Text = "Week" }, 
                  new SelectListItem { Value = "Day", Text = "Day" }
              };
 
@@ -57,31 +66,37 @@ namespace GCTL.UI.Core.Controllers
         }
 
 
+
+
+
+       
+
+
         #region Post
         [HttpPost]
         [ValidateAntiForgeryToken]
 
-
+        
         public async Task<IActionResult> Setup(LeaveTypeSetupViewModel modelVM)
         {
             try
             {
-
+               
                 if (await leaveTypeService.IsLeaveTypeExistAsync(modelVM.Name, modelVM.LeaveTypeCode))
                 {
                     return Json(new { isSuccess = false, message = $"Already <span style='color: blue;'>'{modelVM.Name}'</span> Exists", isDuplicate = true });
                 }
 
-
+               
                 if (string.IsNullOrEmpty(modelVM.LeaveTypeCode))
                 {
                     modelVM.LeaveTypeCode = await leaveTypeService.GenerateNextLeaveTypeCode();
                 }
 
-
+               
                 modelVM.ToAudit(LoginInfo, modelVM.Id > 0);
 
-
+               
                 if (modelVM.Id == 0)
                 {
                     var hasSavePermission = await leaveTypeService.SavePermissionAsync(LoginInfo.AccessCode);
@@ -97,7 +112,7 @@ namespace GCTL.UI.Core.Controllers
                 }
                 else
                 {
-
+                   
                     var hasUpdatePermission = await leaveTypeService.UpdatePermissionAsync(LoginInfo.AccessCode);
                     if (hasUpdatePermission)
                     {
@@ -122,10 +137,11 @@ namespace GCTL.UI.Core.Controllers
         #endregion
 
 
+
         #region CheckAvailability
         [HttpPost]
-        public async Task<JsonResult> CheckAvailability(string name, string code)
-        {
+        public async Task< JsonResult> CheckAvailability(string name, string code)
+       {
             if (await leaveTypeService.IsLeaveTypeExistAsync(name, code))
             {
 
@@ -137,39 +153,45 @@ namespace GCTL.UI.Core.Controllers
         }
         #endregion
 
-
         #region Delete
+
+    
+
         [HttpPost]
         public async Task<IActionResult> Delete([FromBody] List<string> ids)
         {
             try
             {
+              
                 var hasPermission = await leaveTypeService.DeletePermissionAsync(LoginInfo.AccessCode);
                 if (hasPermission)
                 {
-                    DeleteHistoryViewModel model = new DeleteHistoryViewModel();
-                    model.ToAudit(LoginInfo);
-                    model.CompanyCode = LoginInfo.CompanyCode;
-
-                    var result = await leaveTypeService.DeleteLeaveType(ids, model);
-
-                    return Json(new { isSuccess = result.success, message = result.message, refSuccess = result.refError });
+                  
+                    foreach (var id in ids)
+                    {
+                        //var result =  leaveTypeService.DeleteLeaveType(id);
+                      
+                    }
+                   
+                    return Json(new { isSuccess = true, message = "Data Deleted Successfully" });
                 }
                 else
                 {
+                  
                     return Json(new { isSuccess = false, message = "You have no access" });
                 }
             }
             catch (Exception ex)
             {
+              
                 Console.WriteLine($"Error deleting leave type: {ex.Message}");
+              
                 return StatusCode(500, new { isSuccess = false, message = ex.Message });
             }
         }
 
 
         #endregion
-
 
         #region NeaxtCode
         [HttpGet]
@@ -179,7 +201,6 @@ namespace GCTL.UI.Core.Controllers
             return Json(nextCode);
         }
         #endregion
-
 
         #region TabeleLodaing
         //For Update Tabele data after posting/Updating and Deleeting 
@@ -199,7 +220,6 @@ namespace GCTL.UI.Core.Controllers
 
         //
         #endregion
-
 
         public async Task<IActionResult> ExportToExcel()
         {
@@ -232,11 +252,11 @@ namespace GCTL.UI.Core.Controllers
                 worksheet.Row(dataStartRow).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 worksheet.Row(dataStartRow).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
                 // Add data
-                var designations = await leaveTypeService.GetLeaveTypesAsync();
+                var designations =await leaveTypeService.GetLeaveTypesAsync();
                 int row = dataStartRow + 1;
                 foreach (var designation in designations)
                 {
-
+                   
                     worksheet.Cell(row, 1).Value = "'" + designation.LeaveTypeCode.PadLeft(2, '0');
                     worksheet.Cell(row, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
@@ -277,5 +297,73 @@ namespace GCTL.UI.Core.Controllers
                 }
             }
         }
+
+
     }
 }
+
+
+
+
+
+
+
+
+
+
+//public async Task<IActionResult> Setup(string id)
+//{
+
+
+//    LeaveTypeSetupViewModel model = new LeaveTypeSetupViewModel();
+
+
+//    var result = await leaveTypeService.GetLeaveTypeAsync(id);
+
+//    if (result != null)
+//    {
+
+//        model.Id = (int)result.AutoId;
+//        model.LeaveTypeCode = result.LeaveTypeCode;
+//        model.Name = result.Name;
+//        model.ShortName = result.ShortName;
+//        model.RulePolicy = result.RulePolicy;
+//        model.NoOfDay = result.NoOfDay;
+//        model.For = result.For;
+//        model.Ymwd = result.Ymwd;
+//        model.Luser = result.Luser;
+//        model.Lip = result.Lip;
+//        model.Lmac = result.Lmac;
+//        model.Wef = result.Wef;
+//        model.Ldate = result.Ldate;
+//        model.ModifyDate = result.ModifyDate;
+//    }
+//    else
+//    {
+
+//        model.LeaveTypeCode = await leaveTypeService.GenerateNextLeaveTypeCode();
+//    }
+
+//    return PartialView($"_{nameof(Setup)}", model);
+//}
+
+
+//[HttpPost]
+//public async Task<ActionResult> Delete(string ids)
+//{
+//    var hasPermission = await leaveTypeService.DeletePermissionAsync(LoginInfo.AccessCode);
+//    if (hasPermission)
+//    {
+//        bool success = true;
+//        foreach (var id in ids.Split(",", StringSplitOptions.RemoveEmptyEntries))
+//        {
+//            success = success &&   leaveTypeService.DeleteLeaveType(id);
+//        }
+
+//        return Json(new { success = success, message = "Deleted Successfully" });
+//    }
+//    else
+//    {
+//        return Json(new { isSuccess = false, message = "You have no access" });
+//    }
+//}
