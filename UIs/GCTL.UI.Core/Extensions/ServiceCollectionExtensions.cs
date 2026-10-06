@@ -1,4 +1,4 @@
-﻿using GCTL.Core.Configurations;
+using GCTL.Core.Configurations;
 using GCTL.Core.Data;
 using GCTL.Data;
 using GCTL.Data.Models;
@@ -30,6 +30,7 @@ using GCTL.Service.Country;
 using GCTL.Service.CourseTitle;
 using GCTL.Service.Currencies;
 using GCTL.Service.DailyAttendanceDetailsReport;
+using GCTL.Service.JobCardReport;
 using GCTL.Service.DailyAttendanceSummaryReportService;
 using GCTL.Service.DashboardAttendance;
 using GCTL.Service.DeleteHistories;
@@ -240,6 +241,7 @@ namespace GCTL.UI.Core.Extensions
             //samaul
 
             services.AddScoped<IDailyAttendanceDetailsReportService, DailyAttendanceDetailsReportService>();
+            services.AddScoped<IJobCardReportService, JobCardReportService>();
             services.AddScoped<IEmployeeWeekendDeclarationService, EmployeeWeekendDeclarationService>();
             services.AddScoped<IAdvanceLoanAdjustmentReportServices, AdvanceLoanAdjustmentReportServices>();
             services.AddScoped<IEmployeeLoanInformationReportServices, EmployeeLoanInformationReportServices>();
