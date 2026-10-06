@@ -169,84 +169,92 @@ namespace GCTL.Service.LeaveReport
 
         public async Task<List<LeaveApplicartionGridVM>> GetLeaveReportArrayAsync(LeaveReportArrayViewModel model)
         {
-            var connStr = _configuration.GetConnectionString("ApplicationDbConnection");
-            await using var connection = new SqlConnection(connStr);
-            await connection.OpenAsync();
-
-            var parameters = new DynamicParameters();
-            parameters.Add("@DateFrom", model.DateFrom == DateTime.MinValue ? (object)DBNull.Value : model.DateFrom, DbType.DateTime);
-            parameters.Add("@DateTo", model.DateTo == DateTime.MinValue ? (object)DBNull.Value : model.DateTo, DbType.DateTime);
-            parameters.Add("@Company", model.Company != null && model.Company.Length > 0 ? string.Join(", ", model.Company) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@Branch", model.Branch != null && model.Branch.Length > 0 ? string.Join(", ", model.Branch) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@Department", model.Department != null && model.Department.Length > 0 ? string.Join(", ", model.Department) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@Employee", model.Employee != null && model.Employee.Any() ? string.Join(", ", model.Employee) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@LeaveFormat", model.LeaveFormat != null && model.LeaveFormat.Length > 0 ? string.Join(", ", model.LeaveFormat) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@LeaveStatus", model.LeaveStatus != null && model.LeaveStatus.Length > 0 ? string.Join(", ", model.LeaveStatus) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@ReportType", "Report", DbType.String);
-
-            var results = (await connection.QueryAsync<LeaveDetailVM>(
-                "GetLeaveReport100",
-                parameters,
-                commandType: CommandType.StoredProcedure
-            )).ToList();
-
-            if (!results.Any())
-                return new List<LeaveApplicartionGridVM>();
-
-            // Fetch leave days only for returned entries
-            var entryIds = results
-                .Where(r => (double)r.NoOfDay > 0.5)
-                .Select(r => r.LeaveAppEntryId)
-                .Distinct()
-                .ToList();
-
-            Dictionary<string, List<string>> leaveDaysMap = new();
-            if (entryIds.Any())
+            try
             {
-                leaveDaysMap = _leaveDayRepo
-                    .FindBy(d => entryIds.Contains(d.LeaveAppEntryId))
-                    .ToList()
-                    .GroupBy(d => d.LeaveAppEntryId)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => g.Select(d => d.Days.ToString("dd/MM/yyyy")).ToList());
+                var connStr = _configuration.GetConnectionString("ApplicationDbConnection");
+                await using var connection = new SqlConnection(connStr);
+                await connection.OpenAsync();
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@DateFrom", model.DateFrom == DateTime.MinValue ? (object)DBNull.Value : model.DateFrom, DbType.DateTime);
+                parameters.Add("@DateTo", model.DateTo == DateTime.MinValue ? (object)DBNull.Value : model.DateTo, DbType.DateTime);
+                parameters.Add("@Company", model.Company != null && model.Company.Length > 0 ? string.Join(", ", model.Company) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@Branch", model.Branch != null && model.Branch.Length > 0 ? string.Join(", ", model.Branch) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@Department", model.Department != null && model.Department.Length > 0 ? string.Join(", ", model.Department) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@Employee", model.Employee != null && model.Employee.Any() ? string.Join(", ", model.Employee) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@LeaveFormat", model.LeaveFormat != null && model.LeaveFormat.Length > 0 ? string.Join(", ", model.LeaveFormat) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@LeaveStatus", model.LeaveStatus != null && model.LeaveStatus.Length > 0 ? string.Join(", ", model.LeaveStatus) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@ReportType", "Report", DbType.String);
+
+                var results = (await connection.QueryAsync<LeaveDetailVM>(
+                    "GetLeaveReport100",
+                    parameters,
+                    commandType: CommandType.StoredProcedure
+                )).ToList();
+
+                if (!results.Any())
+                    return new List<LeaveApplicartionGridVM>();
+
+                // Fetch leave days only for returned entries
+                var entryIds = results
+                    .Where(r => (double)r.NoOfDay > 0.5)
+                    .Select(r => r.LeaveAppEntryId)
+                    .Distinct()
+                    .ToList();
+
+                Dictionary<string, List<string>> leaveDaysMap = new();
+                if (entryIds.Any())
+                {
+                    leaveDaysMap = _leaveDayRepo
+                        .FindBy(d => entryIds.Contains(d.LeaveAppEntryId))
+                        .ToList()
+                        .GroupBy(d => d.LeaveAppEntryId)
+                        .ToDictionary(
+                            g => g.Key,
+                            g => g.Select(d => d.Days.ToString("dd/MM/yyyy")).ToList());
+                }
+
+                return results.Select(item => new LeaveApplicartionGridVM
+                {
+                    EmployeeID = item.EmployeeId,
+                    LeaveAppEntryCode = decimal.TryParse(item.LeaveAppEntryCode, out var c) ? c : 0,
+                    LeaveAppEntryId = item.LeaveAppEntryId,
+                    LeaveTypeId = item.LeaveTypeId,
+                    StartDate = item.StartDate ?? DateTime.MinValue,
+                    EndDate = item.EndDate ?? DateTime.MinValue,
+                    NoOfDay = item.NoOfDay,
+                    ModifyDate = item.ModifyDate,
+                    ConfirmationRemarks = item.ConfirmationRemarks,
+                    HODApprovalStatus = item.HODApprovalStatus,
+                    HODApprovalRemarks = item.HRApprovalRemarks,
+                    SickLeaveFilePath = item.SickLeaveFilePath,
+                    HRApprovalStatus = item.HRApprovalStatus,
+                    HRApprovalRemarks = item.HRApprovalRemarks,
+                    ApplyLeaveFormat = item.ApplyLeaveFormat,
+                    HODFirstName = item.HODFirstName,
+                    SupervisorFirstName = item.SupervisorFirstName,
+                    EmployeeFirstName = item.EmployeeFirstName,
+                    Reason = item.Reason,
+                    DepartmentName = item.DepartmentName,
+                    DesignationName = item.DesignationName,
+                    ShortLeaveFrom = item.ShortLeaveFrom,
+                    ShortLeaveTo = item.ShortLeaveTo,
+                    ShortLeaveTime = item.ShortLeaveTime.HasValue ? TimeOnly.FromTimeSpan(item.ShortLeaveTime.Value) : null,
+                    IsApproved = item.IsApproved,
+                    FirstOrSecondHalf = item.FirstOrSecondHalf,
+                    ShortLeaveFromStr = item.ShortLeaveFrom?.ToString("dd/MM/yyyy"),
+                    ShortLeaveToStr = item.ShortLeaveTo?.ToString("dd/MM/yyyy"),
+                    ShortLeaveTimeStr = item.ShortLeaveTime?.ToString(@"hh\:mm"),
+                    CountTotal = item.TotalLeaves,
+                    Days = null,
+                    DaysStr = leaveDaysMap.TryGetValue(item.LeaveAppEntryId, out var d) ? d : new List<string>()
+                }).ToList();
             }
-
-            return results.Select(item => new LeaveApplicartionGridVM
+            catch (Exception)
             {
-                EmployeeID = item.EmployeeId,
-                LeaveAppEntryCode = decimal.TryParse(item.LeaveAppEntryCode, out var c) ? c : 0,
-                LeaveAppEntryId = item.LeaveAppEntryId,
-                LeaveTypeId = item.LeaveTypeId,
-                StartDate = item.StartDate ?? DateTime.MinValue,
-                EndDate = item.EndDate ?? DateTime.MinValue,
-                NoOfDay = item.NoOfDay,
-                ModifyDate = item.ModifyDate,
-                ConfirmationRemarks = item.ConfirmationRemarks,
-                HODApprovalStatus = item.HODApprovalStatus,
-                HODApprovalRemarks = item.HRApprovalRemarks,
-                SickLeaveFilePath = item.SickLeaveFilePath,
-                HRApprovalStatus = item.HRApprovalStatus,
-                HRApprovalRemarks = item.HRApprovalRemarks,
-                ApplyLeaveFormat = item.ApplyLeaveFormat,
-                HODFirstName = item.HODFirstName,
-                SupervisorFirstName = item.SupervisorFirstName,
-                EmployeeFirstName = item.EmployeeFirstName,
-                Reason = item.Reason,
-                DepartmentName = item.DepartmentName,
-                DesignationName = item.DesignationName,
-                ShortLeaveFrom = item.ShortLeaveFrom,
-                ShortLeaveTo = item.ShortLeaveTo,
-                ShortLeaveTime = item.ShortLeaveTime.HasValue ? TimeOnly.FromTimeSpan(item.ShortLeaveTime.Value) : null,
-                IsApproved = item.IsApproved,
-                FirstOrSecondHalf = item.FirstOrSecondHalf,
-                ShortLeaveFromStr = item.ShortLeaveFrom?.ToString("dd/MM/yyyy"),
-                ShortLeaveToStr = item.ShortLeaveTo?.ToString("dd/MM/yyyy"),
-                ShortLeaveTimeStr = item.ShortLeaveTime?.ToString(@"hh\:mm"),
-                CountTotal = item.TotalLeaves,
-                Days = null,
-                DaysStr = leaveDaysMap.TryGetValue(item.LeaveAppEntryId, out var d) ? d : new List<string>()
-            }).ToList();
+
+                throw;
+            }
         }
 
 
@@ -255,70 +263,78 @@ namespace GCTL.Service.LeaveReport
 
         public async Task<Dictionary<string, CompanyLeaveDataVM>> GetReportArrayAsync(LeaveReportArrayViewModel model)
         {
-            var connStr = _configuration.GetConnectionString("ApplicationDbConnection");
-            await using var connection = new SqlConnection(connStr);
-            await connection.OpenAsync();
-
-            var parameters = new DynamicParameters();
-            parameters.Add("@DateFrom", model.DateFrom == DateTime.MinValue ? (object)DBNull.Value : model.DateFrom, DbType.DateTime);
-            parameters.Add("@DateTo", model.DateTo == DateTime.MinValue ? (object)DBNull.Value : model.DateTo, DbType.DateTime);
-            parameters.Add("@Company", model.Company != null && model.Company.Length > 0 ? string.Join(", ", model.Company) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@Branch", model.Branch != null && model.Branch.Length > 0 ? string.Join(", ", model.Branch) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@Department", model.Department != null && model.Department.Length > 0 ? string.Join(", ", model.Department) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@Employee", model.Employee != null && model.Employee.Any() ? string.Join(", ", model.Employee) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@LeaveFormat", model.LeaveFormat != null && model.LeaveFormat.Length > 0 ? string.Join(", ", model.LeaveFormat) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@LeaveStatus", model.LeaveStatus != null && model.LeaveStatus.Length > 0 ? string.Join(", ", model.LeaveStatus) : (object)DBNull.Value, DbType.String);
-            parameters.Add("@ReportType", "Report", DbType.String);
-
-            var results = (await connection.QueryAsync<LeaveDetailVM>(
-                "GetLeaveReport100",
-                parameters,
-                commandType: CommandType.StoredProcedure
-            )).ToList();
-
-            if (!results.Any())
-                return new Dictionary<string, CompanyLeaveDataVM>();
-
-            // Fetch leave days only for returned entries (single query, not N+1)
-            var entryIds = results
-                .Where(r => (double)r.NoOfDay > 0.5)
-                .Select(r => r.LeaveAppEntryId)
-                .Distinct()
-                .ToList();
-
-            Dictionary<string, List<string>> leaveDaysMap = new();
-
-            if (entryIds.Any())
+            try
             {
-                leaveDaysMap = _leaveDayRepo
-                    .FindBy(d => entryIds.Contains(d.LeaveAppEntryId))
-                    .ToList()
-                    .GroupBy(d => d.LeaveAppEntryId)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => g.Select(d => d.Days.ToString("dd/MM/yyyy")).ToList());
+                var connStr = _configuration.GetConnectionString("ApplicationDbConnection");
+                await using var connection = new SqlConnection(connStr);
+                await connection.OpenAsync();
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@DateFrom", model.DateFrom == DateTime.MinValue ? (object)DBNull.Value : model.DateFrom, DbType.DateTime);
+                parameters.Add("@DateTo", model.DateTo == DateTime.MinValue ? (object)DBNull.Value : model.DateTo, DbType.DateTime);
+                parameters.Add("@Company", model.Company != null && model.Company.Length > 0 ? string.Join(", ", model.Company) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@Branch", model.Branch != null && model.Branch.Length > 0 ? string.Join(", ", model.Branch) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@Department", model.Department != null && model.Department.Length > 0 ? string.Join(", ", model.Department) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@Employee", model.Employee != null && model.Employee.Any() ? string.Join(", ", model.Employee) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@LeaveFormat", model.LeaveFormat != null && model.LeaveFormat.Length > 0 ? string.Join(", ", model.LeaveFormat) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@LeaveStatus", model.LeaveStatus != null && model.LeaveStatus.Length > 0 ? string.Join(", ", model.LeaveStatus) : (object)DBNull.Value, DbType.String);
+                parameters.Add("@ReportType", "Report", DbType.String);
+
+                var results = (await connection.QueryAsync<LeaveDetailVM>(
+                    "GetLeaveReport100",
+                    parameters,
+                    commandType: CommandType.StoredProcedure
+                )).ToList();
+
+                if (!results.Any())
+                    return new Dictionary<string, CompanyLeaveDataVM>();
+
+                // Fetch leave days only for returned entries (single query, not N+1)
+                var entryIds = results
+                    .Where(r => (double)r.NoOfDay > 0.5)
+                    .Select(r => r.LeaveAppEntryId)
+                    .Distinct()
+                    .ToList();
+
+                Dictionary<string, List<string>> leaveDaysMap = new();
+
+                if (entryIds.Any())
+                {
+                    leaveDaysMap = _leaveDayRepo
+                        .FindBy(d => entryIds.Contains(d.LeaveAppEntryId))
+                        .ToList()
+                        .GroupBy(d => d.LeaveAppEntryId)
+                        .ToDictionary(
+                            g => g.Key,
+                            g => g.Select(d => d.Days.ToString("dd/MM/yyyy")).ToList());
+                }
+
+                // Group into Company → Department hierarchy
+                var grouped = new Dictionary<string, CompanyLeaveDataVM>();
+
+                foreach (var item in results)
+                {
+                    if ((double)item.NoOfDay > 0.5)
+                        item.DaysStr = leaveDaysMap.TryGetValue(item.LeaveAppEntryId, out var d) ? d : new List<string>();
+
+                    var compKey = string.IsNullOrWhiteSpace(item.CompanyName) ? "Unknown Company" : item.CompanyName;
+                    if (!grouped.ContainsKey(compKey))
+                        grouped[compKey] = new CompanyLeaveDataVM { CompanyCode = compKey, DepartmentData = new() };
+
+                    var deptKey = string.IsNullOrWhiteSpace(item.DepartmentName) ? "Unknown Department" : item.DepartmentName;
+                    if (!grouped[compKey].DepartmentData.ContainsKey(deptKey))
+                        grouped[compKey].DepartmentData[deptKey] = new DepartmentLeaveDataVM { DepartmentName = deptKey, LeaveDetails = new() };
+
+                    grouped[compKey].DepartmentData[deptKey].LeaveDetails.Add(item);
+                }
+
+                return grouped;
             }
-
-            // Group into Company → Department hierarchy
-            var grouped = new Dictionary<string, CompanyLeaveDataVM>();
-
-            foreach (var item in results)
+            catch (Exception)
             {
-                if ((double)item.NoOfDay > 0.5)
-                    item.DaysStr = leaveDaysMap.TryGetValue(item.LeaveAppEntryId, out var d) ? d : new List<string>();
 
-                var compKey = string.IsNullOrWhiteSpace(item.CompanyName) ? "Unknown Company" : item.CompanyName;
-                if (!grouped.ContainsKey(compKey))
-                    grouped[compKey] = new CompanyLeaveDataVM { CompanyCode = compKey, DepartmentData = new() };
-
-                var deptKey = string.IsNullOrWhiteSpace(item.DepartmentName) ? "Unknown Department" : item.DepartmentName;
-                if (!grouped[compKey].DepartmentData.ContainsKey(deptKey))
-                    grouped[compKey].DepartmentData[deptKey] = new DepartmentLeaveDataVM { DepartmentName = deptKey, LeaveDetails = new() };
-
-                grouped[compKey].DepartmentData[deptKey].LeaveDetails.Add(item);
+                throw;
             }
-
-            return grouped;
         }
 
         // ─── DROPDOWNS ────────────────────────────────────────────────────────────
@@ -440,7 +456,32 @@ namespace GCTL.Service.LeaveReport
                                             AddTableRow(table, app);
                                     });
 
+                                    var deptEmpCount = deptEntry.Value.LeaveDetails
+                                        .Select(x => x.EmployeeId)
+                                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                                        .Distinct()
+                                        .Count();
+                                    if (deptEmpCount == 0) deptEmpCount = deptEntry.Value.LeaveDetails.Count;
+
+                                    column.Item().PaddingTop(4).PaddingBottom(1)
+                                        .Text($"    Total: {deptEmpCount}").FontSize(11).Bold();
+
                                     bool isLastDept = deptEntry.Key == company.Value.DepartmentData.Keys.Last();
+                                    if (isLastDept)
+                                    {
+                                        var grandTotalEmpCount = company.Value.DepartmentData.Values
+                                            .SelectMany(d => d.LeaveDetails)
+                                            .Select(x => x.EmployeeId)
+                                            .Where(id => !string.IsNullOrWhiteSpace(id))
+                                            .Distinct()
+                                            .Count();
+                                        if (grandTotalEmpCount == 0)
+                                            grandTotalEmpCount = company.Value.DepartmentData.Values.Sum(d => d.LeaveDetails.Count);
+
+                                        column.Item().PaddingTop(1).PaddingBottom(8)
+                                            .Text($"Grand Total: {grandTotalEmpCount}").FontSize(11).Bold();
+                                    }
+
                                     bool isLastComp = company.Key == data.Keys.Last();
                                     //if (!(isLastComp && isLastDept))
                                     //    column.Item().PageBreak();
@@ -548,6 +589,34 @@ namespace GCTL.Service.LeaveReport
                             range.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
                             range.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Center;
                         }
+                    }
+
+                    var deptEmpCount = deptEntry.Value.LeaveDetails
+                        .Select(x => x.EmployeeId)
+                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                        .Distinct()
+                        .Count();
+                    if (deptEmpCount == 0) deptEmpCount = deptEntry.Value.LeaveDetails.Count;
+
+                    ws.Cells[row, 2].Value = $"    Total: {deptEmpCount}";
+                    ws.Cells[row, 2].Style.Font.Bold = true;
+                    row++;
+
+                    bool isLastDept = deptEntry.Key == company.Value.DepartmentData.Keys.Last();
+                    if (isLastDept)
+                    {
+                        var grandTotalEmpCount = company.Value.DepartmentData.Values
+                            .SelectMany(d => d.LeaveDetails)
+                            .Select(x => x.EmployeeId)
+                            .Where(id => !string.IsNullOrWhiteSpace(id))
+                            .Distinct()
+                            .Count();
+                        if (grandTotalEmpCount == 0)
+                            grandTotalEmpCount = company.Value.DepartmentData.Values.Sum(d => d.LeaveDetails.Count);
+
+                        ws.Cells[row, 2].Value = $"Grand Total: {grandTotalEmpCount}";
+                        ws.Cells[row, 2].Style.Font.Bold = true;
+                        row++;
                     }
                 }
 
@@ -1005,6 +1074,32 @@ namespace GCTL.Service.LeaveReport
 
                         foreach (var app in dept.Data) AddTableRow(table, app);
                     });
+
+                    var deptEmpCount = dept.Data
+                        .Select(x => x.EmployeeID)
+                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                        .Distinct()
+                        .Count();
+                    if (deptEmpCount == 0) deptEmpCount = dept.Data.Count;
+
+                    col.Item().PaddingTop(4).PaddingBottom(1)
+                        .Text($"    Total: {deptEmpCount}").FontSize(11).Bold();
+
+                    bool isLastDept = dept == data.Last();
+                    if (isLastDept)
+                    {
+                        var grandTotalEmpCount = data
+                            .SelectMany(d => d.Data)
+                            .Select(x => x.EmployeeID)
+                            .Where(id => !string.IsNullOrWhiteSpace(id))
+                            .Distinct()
+                            .Count();
+                        if (grandTotalEmpCount == 0)
+                            grandTotalEmpCount = data.Sum(d => d.Data.Count);
+
+                        col.Item().PaddingTop(1).PaddingBottom(8)
+                            .Text($"Grand Total: {grandTotalEmpCount}").FontSize(11).Bold();
+                    }
                 }
             });
         }

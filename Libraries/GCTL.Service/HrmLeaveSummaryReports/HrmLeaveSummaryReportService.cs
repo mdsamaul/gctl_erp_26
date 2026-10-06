@@ -488,7 +488,23 @@ namespace GCTL.Service.HrmLeaveSummaryReports
                     row++;
                 }
 
-                row += 3; // Space between departments
+                int dTotal = deptGroup.Select(x => x.EmployeeId).Where(x => !string.IsNullOrEmpty(x)).Distinct().Count();
+                if (dTotal == 0) dTotal = deptGroup.Count();
+                worksheet.Cells[row, 2].Value = $"    Total: {dTotal}";
+                worksheet.Cells[row, 2].Style.Font.Bold = true;
+                row++;
+
+                bool isLastD = deptGroup.Key == groupedData.Last().Key;
+                if (isLastD)
+                {
+                    int gTotal = data.Select(x => x.EmployeeId).Where(x => !string.IsNullOrEmpty(x)).Distinct().Count();
+                    if (gTotal == 0) gTotal = data.Count;
+                    worksheet.Cells[row, 2].Value = $"Grand Total: {gTotal}";
+                    worksheet.Cells[row, 2].Style.Font.Bold = true;
+                    row++;
+                }
+
+                row += 2; // Space between departments
             }
             // After finishing the foreach loop for departments
             // and before returning the package
@@ -651,6 +667,30 @@ namespace GCTL.Service.HrmLeaveSummaryReports
                 }
 
                 document.Add(table);
+
+                int deptTotal = deptGroup.Select(x => x.EmployeeId).Where(x => !string.IsNullOrEmpty(x)).Distinct().Count();
+                if (deptTotal == 0) deptTotal = deptGroup.Count();
+
+                var deptTotalParagraph = new iText.Layout.Element.Paragraph($"    Total: {deptTotal}")
+                    .SetFont(timesBold)
+                    .SetFontSize(11)
+                    .SetMarginTop(4)
+                    .SetMarginBottom(1);
+                document.Add(deptTotalParagraph);
+
+                bool isLastDept = deptGroup.Key == groupedData.Last().Key;
+                if (isLastDept)
+                {
+                    int grandTotal = data.Select(x => x.EmployeeId).Where(x => !string.IsNullOrEmpty(x)).Distinct().Count();
+                    if (grandTotal == 0) grandTotal = data.Count;
+
+                    var grandTotalParagraph = new iText.Layout.Element.Paragraph($"Grand Total: {grandTotal}")
+                        .SetFont(timesBold)
+                        .SetFontSize(11)
+                        .SetMarginTop(1)
+                        .SetMarginBottom(8);
+                    document.Add(grandTotalParagraph);
+                }
             }
 
             // Close the main document

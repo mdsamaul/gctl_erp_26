@@ -1,4 +1,4 @@
-﻿(function ($) {
+(function ($) {
     $.dailyAttendanceDetails = function (options) {
         var settings = $.extend({ baseUrl: "/" }, options);
 
@@ -543,6 +543,25 @@
                             headCols
                         ],
                         body: body,
+                        foot: [
+                            [{
+                                content: 'Total: ' + deptRows.length,
+                                colSpan: colCount,
+                                styles: {
+                                    halign: 'left',
+                                    valign: 'middle',
+                                    fontStyle: 'bold',
+                                    fontSize: 7,
+                                    font: 'times',
+                                    textColor: [0, 0, 0],
+                                    lineColor: [0, 0, 0],
+                                    lineWidth: 0.25,
+                                    fillColor: [255, 255, 255],
+                                    cellPadding: { top: 3, right: 3, bottom: 3, left: 4 }
+                                }
+                            }]
+                        ],
+                        showFoot: 'lastPage',
                         styles: {
                             font: 'times',
                             fontSize: 6,
@@ -558,6 +577,17 @@
                             font: 'times',
                             fontStyle: 'normal',
                             halign: 'center',
+                            valign: 'middle',
+                            fontSize: 7,
+                            textColor: [0, 0, 0],
+                            lineColor: [0, 0, 0],
+                            lineWidth: 0.25,
+                            fillColor: [255, 255, 255]
+                        },
+                        footStyles: {
+                            font: 'times',
+                            fontStyle: 'bold',
+                            halign: 'left',
                             valign: 'middle',
                             fontSize: 7,
                             textColor: [0, 0, 0],
@@ -585,7 +615,65 @@
 
                     currentY = doc.lastAutoTable.finalY + 6;
                 });
+
+                // ── Grand Total ───────────────────────────────────────
+                if (rows && rows.length > 0) {
+                    if (currentY > PH - 85) {
+                        doc.addPage();
+                        drawHeader();
+                        drawFooter(doc.internal.getCurrentPageInfo().pageNumber);
+                        currentY = TOP_MARGIN;
+                    }
+
+                    doc.autoTable({
+                        startY: currentY,
+                        tableWidth: usableWidth,
+                        margin: { left: LEFT_MARGIN, right: RIGHT_MARGIN, top: TOP_MARGIN, bottom: BOTTOM_MARGIN },
+                        theme: 'grid',
+                        body: [
+                            [{
+                                content: 'Grand Total: ' + rows.length,
+                                colSpan: colCount,
+                                styles: {
+                                    halign: 'left',
+                                    valign: 'middle',
+                                    fontStyle: 'bold',
+                                    fontSize: 7,
+                                    font: 'times',
+                                    textColor: [0, 0, 0],
+                                    lineColor: [0, 0, 0],
+                                    lineWidth: 0.25,
+                                    fillColor: [255, 255, 255],
+                                    cellPadding: { top: 3, right: 3, bottom: 3, left: 4 }
+                                }
+                            }]
+                        ],
+                        styles: {
+                            font: 'times',
+                            fontSize: 7,
+                            cellPadding: 3,
+                            halign: 'left',
+                            valign: 'middle',
+                            textColor: [0, 0, 0],
+                            lineColor: [0, 0, 0],
+                            lineWidth: 0.25,
+                            fillColor: [255, 255, 255]
+                        },
+                        didDrawPage: function () {
+                            drawHeader();
+                            drawFooter(doc.internal.getCurrentPageInfo().pageNumber);
+                        }
+                    });
+
+                    currentY = doc.lastAutoTable.finalY + 6;
+                }
+
                 // ── Signature block on the last page ───────────────────
+                if (currentY > PH - 80) {
+                    doc.addPage();
+                    drawHeader();
+                    drawFooter(doc.internal.getCurrentPageInfo().pageNumber);
+                }
                 drawSignatureBlock();
                 if (typeof doc.putTotalPages === 'function')
                     doc.putTotalPages('{total_pages_count_string}');

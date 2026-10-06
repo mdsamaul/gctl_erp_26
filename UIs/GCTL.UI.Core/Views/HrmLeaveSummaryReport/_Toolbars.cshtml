@@ -1,29 +1,21 @@
-@* @model ToobarModel
-<div class="row">
+﻿@model ToobarModel
+<div class="row align-items-center">
 	<div class="col-md-5">
-		<h5 class="page-title px-3 text-black font-weight-bold">Leave Summary Report</h5>
-	</div>
-</div> *@
-
-@model ToobarModel
-<div class="row">
-	<div class="col-md-5 px-0">
-		<h5 class="page-title px-0 text-black font-weight-bold">@Model.Title</h5>
+		<h6 class="page-title px-3 text-black font-weight-bold">Leave Summary Report</h6>
 	</div>
 	<div class="col-md-7">
 		<div class="btn-toolbar d-flex justify-content-end">
 			<div class="btn-group">
-
-				@* <button type="button" class="btn btn-default success-btn js-HomeOfficeRequest-report-save" id="submitButton">
+				@* <button type="button" class="btn btn-default success-btn js-Attendance-Movement-Register-report-save" id="submitButton" data-toggle="tooltip" data-placement="bottom" title="Save">
 					<i class="fa fa-save">&nbsp;</i> Save
 				</button>
-				<button type="button" class="btn btn-default danger-btn" id="js-HomeOfficeRequest-report-delete-confirm">
+				<button type="button" class="btn btn-default danger-btn" id="js-Attendance-Movement-Register-report-delete-confirm" data-toggle="tooltip" data-placement="bottom" title="Delete">
 					<i class="fa fa-trash">&nbsp;</i> Delete
 				</button> *@
 				<button type="button" class="btn btn-default primary-btn " id="js-leveSummery-report-clear">
 					<i class="fa fa-eraser">&nbsp;</i> Clear
 				</button>
-				
+
 				<button type="button" class="btn btn-default info-btn js-leveSummery">
 					<i class="fas fa-file-export">&nbsp;</i> Export
 				</button>
@@ -33,5 +25,4 @@
 			</div>
 		</div>
 	</div>
-	<hr/>
 </div>

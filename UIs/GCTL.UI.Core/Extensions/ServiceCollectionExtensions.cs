@@ -92,6 +92,7 @@ using GCTL.Service.HrmDefSeparationTypes;
 using GCTL.Service.HrmEmployeeOfficialInfoServe;
 using GCTL.Service.HrmEmployees2;
 using GCTL.Service.HrmEmployeeSalaryInfoReport;
+using GCTL.Service.HrmLeaveApplicationEntrys;
 using GCTL.Service.HrmLeaveSummaryReports;
 using GCTL.Service.HRMPayrollLoan;
 using GCTL.Service.HRMTransportAssignEntryService;
@@ -307,7 +308,9 @@ namespace GCTL.UI.Core.Extensions
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<ILeaveReportService, LeaveReportService>();
             services.AddScoped<IHrmLeaveSummaryReportService, HrmLeaveSummaryReportService>();
-
+            services.AddScoped<IHrmLeaveApplicationEntry, HrmLeaveApplicationEntryService>();
+            services.AddScoped<ILeaveApplicationDay, LeaveAppicationDayService>();
+            services.AddScoped<ILeaveEmailService, LeaveEmailService>();
 
 
             //services.AddScoped<IInstructionInformationService, InstructionInformationService>();
