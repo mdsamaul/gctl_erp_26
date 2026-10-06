@@ -92,7 +92,6 @@ using GCTL.Service.HrmDefSeparationTypes;
 using GCTL.Service.HrmEmployeeOfficialInfoServe;
 using GCTL.Service.HrmEmployees2;
 using GCTL.Service.HrmEmployeeSalaryInfoReport;
-using GCTL.Service.HrmLeaveApplicationEntrys;
 using GCTL.Service.HrmLeaveSummaryReports;
 using GCTL.Service.HRMPayrollLoan;
 using GCTL.Service.HRMTransportAssignEntryService;
@@ -272,11 +271,6 @@ namespace GCTL.UI.Core.Extensions
             services.AddScoped<IGcAccessFilterService, GcAccessFilterService>();
             services.AddScoped<IHRLettersReportService, HRLettersReportService>();
             services.AddScoped<IDailyAttendanceSummaryReportService, DailyAttendanceSummaryReportService>();
-            services.AddScoped<IHrmLeaveSummaryReportService, HrmLeaveSummaryReportService>();
-            services.AddScoped<IHrmLeaveApplicationEntry, HrmLeaveApplicationEntryService>();
-            services.AddScoped<ILeaveReportService, LeaveReportService>();
-            services.AddScoped<ILeaveApplicationDay, LeaveAppicationDayService> ();
-            services.AddScoped<ILeaveEmailService, LeaveEmailService> ();
 
 
             services.AddScoped<IProductIssueEntryService, ProductIssueEntryService>();
@@ -311,6 +305,8 @@ namespace GCTL.UI.Core.Extensions
             //services.AddScoped<IRMG_CostingInfoReportService, RMG_CostingInfoReportService>();
             //services.AddScoped<IRMGBookingOrderEntryBuklService, RMGBookingOrderEntryBuklService>();
             services.AddScoped<IEmailService, EmailService>();
+            services.AddScoped<ILeaveReportService, LeaveReportService>();
+            services.AddScoped<IHrmLeaveSummaryReportService, HrmLeaveSummaryReportService>();
 
 
 

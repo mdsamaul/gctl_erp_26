@@ -308,7 +308,7 @@ table.dataTable.table-sm > thead > tr > th:first-child {
 }
 
 .consistent-look .card {
-    min-height: 556px;
+/*    min-height: 556px;*/
 }
 
 .action-buttons .btn {
