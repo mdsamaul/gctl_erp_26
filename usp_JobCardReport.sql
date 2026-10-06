@@ -203,12 +203,18 @@ BEGIN
     INSERT INTO #Holidays (HolidayDate, HolidayName)
     VALUES 
         ('2026-01-01', 'New Year''s Day'),
+        ('2026-02-04', 'Shab-e-Barat'),
         ('2026-02-21', 'Shaheed Day & International Mother Language Day'),
         ('2026-03-19', 'Holiday'),
         ('2026-03-20', 'Holiday'),
         ('2026-03-26', 'Independence Day'),
         ('2026-04-14', 'Bengali New Year'),
         ('2026-05-01', 'May Day'),
+        ('2026-05-27', 'Eid-ul-Azha'),
+        ('2026-05-28', 'Eid-ul-Azha'),
+        ('2026-06-26', 'Ashura'),
+        ('2026-09-04', 'Janmashtami / Eid-e-Miladunnabi'),
+        ('2026-10-20', 'Durga Puja'),
         ('2026-12-16', 'Victory Day'),
         ('2026-12-25', 'Christmas Day');
 

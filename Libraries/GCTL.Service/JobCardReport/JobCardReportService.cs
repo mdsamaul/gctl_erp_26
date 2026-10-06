@@ -243,7 +243,124 @@ namespace GCTL.Service.JobCardReport
                     currentRow++;
                 }
 
-                currentRow += 2; // Spacing before next employee
+                // ── Employee Summary Stats for Excel ──
+                int totalRows = emp.Rows.Count;
+                int presentCount = 0;
+                int lateCount = 0;
+                int absentCount = 0;
+                int weekendCount = 0;
+                int holidayCount = 0;
+                int leaveCount = 0;
+                int earlyOutCount = 0;
+                long totalLateSec = 0;
+                long totalWorkSec = 0;
+
+                foreach (var r in emp.Rows)
+                {
+                    var st = (r.Status ?? "").Trim();
+                    if (st == "P") presentCount++;
+                    else if (st == "L") lateCount++;
+                    else if (st == "A") absentCount++;
+                    else if (st == "W") weekendCount++;
+                    else if (st == "H") holidayCount++;
+                    else leaveCount++;
+
+                    if (!string.IsNullOrWhiteSpace(r.Late) && r.Late != "00:00:00")
+                    {
+                        var lp = r.Late.Split(':');
+                        if (lp.Length == 3 && int.TryParse(lp[0], out int h) && int.TryParse(lp[1], out int m) && int.TryParse(lp[2], out int s))
+                            totalLateSec += (h * 3600) + (m * 60) + s;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(r.EarlyOut) && r.EarlyOut != "00:00:00")
+                        earlyOutCount++;
+
+                    if (!string.IsNullOrWhiteSpace(r.WorkHours) && r.WorkHours != "00:00:00")
+                    {
+                        var wp = r.WorkHours.Split(':');
+                        if (wp.Length == 3 && int.TryParse(wp[0], out int wh) && int.TryParse(wp[1], out int wm) && int.TryParse(wp[2], out int wsec))
+                            totalWorkSec += (wh * 3600) + (wm * 60) + wsec;
+                    }
+                }
+
+                int totalPresent = presentCount + lateCount;
+                int totalWorkingDays = totalRows - weekendCount - holidayCount;
+                int totalAtt = totalPresent + weekendCount + holidayCount + leaveCount;
+
+                long hL = totalLateSec / 3600;
+                long mL = (totalLateSec % 3600) / 60;
+                long sL = totalLateSec % 60;
+                string totalLateStr = $"{hL}:{mL:D2}:{sL:D2}";
+
+                long hW = totalWorkSec / 3600;
+                long mW = (totalWorkSec % 3600) / 60;
+                long sW = totalWorkSec % 60;
+                string totalWorkStr = $"{hW}:{mW:D2}:{sW:D2}";
+
+                string avgTimeStr = "0:00";
+                if (totalPresent > 0)
+                {
+                    long avgSec = totalWorkSec / totalPresent;
+                    long avgH = avgSec / 3600;
+                    long avgM = (avgSec % 3600) / 60;
+                    avgTimeStr = $"{avgH}:{avgM:D2}";
+                }
+
+                // Totals Row
+                currentRow++;
+                ws.Cells[currentRow, 5].Value = totalLateStr;
+                ws.Cells[currentRow, 5].Style.Font.Bold = true;
+                ws.Cells[currentRow, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+
+                ws.Cells[currentRow, 8].Value = totalWorkStr;
+                ws.Cells[currentRow, 8].Style.Font.Bold = true;
+                ws.Cells[currentRow, 8].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+
+                ws.Cells[currentRow, 10].Value = "Average Time: " + avgTimeStr;
+                ws.Cells[currentRow, 10].Style.Font.Bold = true;
+
+                // Attendance Stats Box
+                currentRow += 2;
+                ws.Cells[currentRow, 1].Value = "Total Working Days"; ws.Cells[currentRow, 2].Value = totalWorkingDays;
+                ws.Cells[currentRow, 3].Value = "Total Weekend:"; ws.Cells[currentRow, 4].Value = weekendCount;
+                currentRow++;
+
+                ws.Cells[currentRow, 1].Value = "Total Present :"; ws.Cells[currentRow, 2].Value = totalPresent;
+                ws.Cells[currentRow, 3].Value = "Total Holiday:"; ws.Cells[currentRow, 4].Value = holidayCount;
+                currentRow++;
+
+                ws.Cells[currentRow, 1].Value = "Total Absent :"; ws.Cells[currentRow, 2].Value = absentCount;
+                ws.Cells[currentRow, 3].Value = "Total Early Out:"; ws.Cells[currentRow, 4].Value = earlyOutCount;
+                currentRow++;
+
+                ws.Cells[currentRow, 1].Value = "Total Late :"; ws.Cells[currentRow, 2].Value = lateCount;
+                ws.Cells[currentRow, 3].Value = "Total Att.:"; ws.Cells[currentRow, 4].Value = totalAtt;
+                currentRow++;
+
+                ws.Cells[currentRow, 1].Value = "Total Leave :"; ws.Cells[currentRow, 2].Value = leaveCount;
+                currentRow += 3;
+
+                // Signatures
+                ws.Cells[currentRow, 1].Value = "Prepared by";
+                ws.Cells[currentRow, 1].Style.Font.Bold = true;
+                ws.Cells[currentRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+
+                ws.Cells[currentRow, 5].Value = "Checked by";
+                ws.Cells[currentRow, 5].Style.Font.Bold = true;
+                ws.Cells[currentRow, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+
+                ws.Cells[currentRow, 9].Value = "Authorized by";
+                ws.Cells[currentRow, 9].Style.Font.Bold = true;
+                ws.Cells[currentRow, 9].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                currentRow += 2;
+
+                // Legend
+                ws.Cells[currentRow, 1, currentRow, colCount].Merge = true;
+                ws.Cells[currentRow, 1].Value = "Status Legend: P-Present, L- Late, A- Absent, W- Weekend, H- Holiday, CL- Casual Leave, SL- Sick Leave, UL- Unpaid Leave, ML- Maternity Leave, PL- Paternity Leave, MarL- Marriage Leave, HL- Hajj Leave, UmrL- Umrah Leave";
+                ws.Cells[currentRow, 1].Style.Font.Size = 8;
+                ws.Cells[currentRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+
+                currentRow += 3; // Spacing before next employee
             }
 
             ws.Cells[ws.Dimension.Address].AutoFitColumns();

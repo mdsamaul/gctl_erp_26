@@ -353,6 +353,165 @@
                             drawFooter(doc.internal.getCurrentPageInfo().pageNumber);
                         }
                     });
+
+                    // ── Bottom Summary & Stats Section (Matches last page of employee) ──
+                    var currentY = doc.lastAutoTable.finalY + 16;
+
+                    // If not enough vertical space for summary + signatures + legend, add page
+                    if (currentY > PH - 145) {
+                        doc.addPage();
+                        drawHeader();
+                        drawFooter(doc.internal.getCurrentPageInfo().pageNumber);
+                        currentY = 75;
+                    }
+
+                    // Calculate stats for this employee
+                    var totalRows = (emp.rows || []).length;
+                    var presentCount = 0;
+                    var lateCount = 0;
+                    var absentCount = 0;
+                    var weekendCount = 0;
+                    var holidayCount = 0;
+                    var leaveCount = 0;
+                    var earlyOutCount = 0;
+
+                    var totalLateSec = 0;
+                    var totalWorkSec = 0;
+
+                    (emp.rows || []).forEach(function (r) {
+                        var st = (r.status || '').trim();
+                        var lt = (r.late || '').trim();
+                        var eo = (r.earlyOut || '').trim();
+                        var wh = (r.workHours || '').trim();
+
+                        if (st === 'P') {
+                            presentCount++;
+                        } else if (st === 'L') {
+                            lateCount++;
+                        } else if (st === 'A') {
+                            absentCount++;
+                        } else if (st === 'W') {
+                            weekendCount++;
+                        } else if (st === 'H') {
+                            holidayCount++;
+                        } else {
+                            leaveCount++;
+                        }
+
+                        if (lt && lt !== '00:00:00') {
+                            var lp = lt.split(':');
+                            if (lp.length === 3) {
+                                totalLateSec += (parseInt(lp[0], 10) * 3600) + (parseInt(lp[1], 10) * 60) + parseInt(lp[2], 10);
+                            }
+                        }
+
+                        if (eo && eo !== '00:00:00') {
+                            earlyOutCount++;
+                        }
+
+                        if (wh && wh !== '00:00:00') {
+                            var wp = wh.split(':');
+                            if (wp.length === 3) {
+                                totalWorkSec += (parseInt(wp[0], 10) * 3600) + (parseInt(wp[1], 10) * 60) + parseInt(wp[2], 10);
+                            }
+                        }
+                    });
+
+                    function formatDurationStr(sec) {
+                        var h = Math.floor(sec / 3600);
+                        var rem = sec % 3600;
+                        var m = Math.floor(rem / 60);
+                        var s = rem % 60;
+                        return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+                    }
+
+                    var totalPresent = presentCount + lateCount;
+                    var totalWorkingDays = totalRows - weekendCount - holidayCount;
+                    var totalAtt = totalPresent + weekendCount + holidayCount + leaveCount;
+
+                    var totalLateStr = formatDurationStr(totalLateSec);
+                    var totalWorkStr = formatDurationStr(totalWorkSec);
+
+                    var avgTimeStr = "0:00";
+                    if (totalPresent > 0) {
+                        var avgSec = Math.round(totalWorkSec / totalPresent);
+                        var avgH = Math.floor(avgSec / 3600);
+                        var avgM = Math.floor((avgSec % 3600) / 60);
+                        avgTimeStr = avgH + ':' + String(avgM).padStart(2, '0');
+                    }
+
+                    // 1. Column Totals (under Late & W. Hour(s) columns)
+                    doc.setFont('times', 'bold');
+                    doc.setFontSize(7.5);
+                    doc.setTextColor(0, 0, 0);
+                    // Center of Late column ~302
+                    doc.text(totalLateStr, 302, currentY, { align: 'center' });
+                    // Center of W. Hour(s) column ~457
+                    doc.text(totalWorkStr, 457, currentY, { align: 'center' });
+                    // Average Time under column 7 / 8
+                    doc.text('Average Time:     ' + avgTimeStr, 420, currentY + 33);
+
+                    // 2. Attendance Summary Statistics Block (Left Columns)
+                    doc.setFont('times', 'normal');
+                    doc.setFontSize(7.5);
+
+                    // Left Column (Col 1)
+                    doc.text('Total Working Days', 25, currentY);
+                    doc.text(String(totalWorkingDays), 115, currentY, { align: 'right' });
+
+                    doc.text('Total Present :', 48, currentY + 11);
+                    doc.text(String(totalPresent), 115, currentY + 11, { align: 'right' });
+
+                    doc.text('Total Absent :', 51, currentY + 22);
+                    doc.text(String(absentCount), 115, currentY + 22, { align: 'right' });
+
+                    doc.text('Total Late :', 61, currentY + 33);
+                    doc.text(String(lateCount), 115, currentY + 33, { align: 'right' });
+
+                    doc.text('Total Leave :', 56, currentY + 44);
+                    doc.text(String(leaveCount), 115, currentY + 44, { align: 'right' });
+
+                    // Right Column (Col 2)
+                    doc.text('Total Weekend:', 135, currentY);
+                    doc.text(String(weekendCount), 215, currentY, { align: 'right' });
+
+                    doc.text('Total Holiday:', 140, currentY + 11);
+                    doc.text(String(holidayCount), 215, currentY + 11, { align: 'right' });
+
+                    doc.text('Total Early Out:', 133, currentY + 22);
+                    doc.text(String(earlyOutCount), 215, currentY + 22, { align: 'right' });
+
+                    doc.text('Total Att.:', 153, currentY + 33);
+                    doc.text(String(totalAtt), 215, currentY + 33, { align: 'right' });
+
+                    // 3. Signature Block
+                    var sigLineY = currentY + 68;
+                    var sigTextY = sigLineY + 10;
+
+                    doc.setDrawColor(0, 0, 0);
+                    doc.setLineWidth(0.5);
+
+                    // Prepared by (Left)
+                    doc.line(LEFT_MARGIN + 5, sigLineY, LEFT_MARGIN + 95, sigLineY);
+                    doc.setFont('times', 'normal');
+                    doc.setFontSize(7.5);
+                    doc.text('Prepared by', LEFT_MARGIN + 50, sigTextY, { align: 'center' });
+
+                    // Checked by (Center)
+                    doc.line(PW / 2 - 45, sigLineY, PW / 2 + 45, sigLineY);
+                    doc.text('Checked by', PW / 2, sigTextY, { align: 'center' });
+
+                    // Authorized by (Right)
+                    doc.line(PW - RIGHT_MARGIN - 95, sigLineY, PW - RIGHT_MARGIN - 5, sigLineY);
+                    doc.text('Authorized by', PW - RIGHT_MARGIN - 50, sigTextY, { align: 'center' });
+
+                    // 4. Status Legend
+                    var legendY = sigTextY + 16;
+                    doc.setFont('times', 'normal');
+                    doc.setFontSize(6.5);
+                    doc.setTextColor(0, 0, 0);
+                    doc.text('Status Legend: P-Present, L- Late, A- Absent, W- Weekend, H- Holiday, CL- Casual Leave, SL- Sick Leave, UL- Unpaid Leave, ML- Maternity Leave,', PW / 2, legendY, { align: 'center' });
+                    doc.text('PL- Paternity Leave, MarL- Marriage Leave, HL- Hajj Leave, UmrL- Umrah Leave', PW / 2, legendY + 8, { align: 'center' });
                 });
 
                 if (typeof doc.putTotalPages === 'function') {
