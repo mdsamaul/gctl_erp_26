@@ -213,7 +213,7 @@
 
                     // Page X of Y (Right)
                     var pageStr = 'Page ' + pageNo + ' of {total_pages_count_string}';
-                    doc.text(pageStr, PW - RIGHT_MARGIN, footerY, { align: 'right' });
+                    doc.text(pageStr, PW + RIGHT_MARGIN+40, footerY, { align: 'right' });
                 }
 
                 function drawEmployeeInfoBlock(emp, startY) {
@@ -222,8 +222,8 @@
                     doc.setTextColor(0, 0, 0);
 
                     var labelX = LEFT_MARGIN;
-                    var colonX = labelX + 60;
-                    var valX = colonX + 6;
+                    var colonX = labelX + 42;
+                    var valX = colonX + 3;
 
                     // Row 1: Emp. ID
                     doc.setFont('times', 'bold');
@@ -354,15 +354,15 @@
                         }
                     });
 
-                    // ── Bottom Summary & Stats Section (Matches last page of employee) ──
-                    var currentY = doc.lastAutoTable.finalY + 16;
+                    // ── Bottom Summary & Stats Section (Fixed in Footer area of Employee's Last Page) ──
+                    var boxH = 62;
+                    var boxTopY = PH - 130;
 
-                    // If not enough vertical space for summary + signatures + legend, add page
-                    if (currentY > PH - 145) {
+                    // If table on this page reached into the footer area, add a page
+                    if (doc.lastAutoTable.finalY > boxTopY - 10) {
                         doc.addPage();
                         drawHeader();
                         drawFooter(doc.internal.getCurrentPageInfo().pageNumber);
-                        currentY = 75;
                     }
 
                     // Calculate stats for this employee
@@ -440,78 +440,112 @@
                         avgTimeStr = avgH + ':' + String(avgM).padStart(2, '0');
                     }
 
-                    // 1. Column Totals (under Late & W. Hour(s) columns)
-                    doc.setFont('times', 'bold');
-                    doc.setFontSize(7.5);
+                    // 1. Draw Border around Attendance Summary Box
+                    var boxX = LEFT_MARGIN;
+                    var boxW = 194;
+
+                    doc.setDrawColor(180, 180, 180);
+                    doc.setLineWidth(0.5);
+                    doc.rect(boxX, boxTopY, boxW, boxH);
+
+                    // 2. Attendance Summary Statistics Text Inside Border
+                    doc.setFontSize(7);
                     doc.setTextColor(0, 0, 0);
-                    // Center of Late column ~302
-                    doc.text(totalLateStr, 302, currentY, { align: 'center' });
-                    // Center of W. Hour(s) column ~457
-                    doc.text(totalWorkStr, 457, currentY, { align: 'center' });
-                    // Average Time under column 7 / 8
-                    doc.text('Average Time:     ' + avgTimeStr, 420, currentY + 33);
 
-                    // 2. Attendance Summary Statistics Block (Left Columns)
+                    // Row 1 (boxTopY + 11)
+                    doc.setFont('times', 'bold');
+                    doc.text('Total Working Days', boxX + 6, boxTopY + 11);
                     doc.setFont('times', 'normal');
-                    doc.setFontSize(7.5);
+                    doc.text(String(totalWorkingDays), boxX + 90, boxTopY + 11, { align: 'right' });
 
-                    // Left Column (Col 1)
-                    doc.text('Total Working Days', 25, currentY);
-                    doc.text(String(totalWorkingDays), 115, currentY, { align: 'right' });
+                    doc.setFont('times', 'bold');
+                    doc.text('Total Weekend:', boxX + 100, boxTopY + 11);
+                    doc.setFont('times', 'normal');
+                    doc.text(String(weekendCount), boxX + 186, boxTopY + 11, { align: 'right' });
 
-                    doc.text('Total Present :', 48, currentY + 11);
-                    doc.text(String(totalPresent), 115, currentY + 11, { align: 'right' });
+                    // Row 2 (boxTopY + 22)
+                    doc.setFont('times', 'bold');
+                    doc.text('Total Present:', boxX + 25, boxTopY + 22);
+                    doc.setFont('times', 'normal');
+                    doc.text(String(totalPresent), boxX + 90, boxTopY + 22, { align: 'right' });
 
-                    doc.text('Total Absent :', 51, currentY + 22);
-                    doc.text(String(absentCount), 115, currentY + 22, { align: 'right' });
+                    doc.setFont('times', 'bold');
+                    doc.text('Total Holiday:', boxX + 105, boxTopY + 22);
+                    doc.setFont('times', 'normal');
+                    doc.text(String(holidayCount), boxX + 186, boxTopY + 22, { align: 'right' });
 
-                    doc.text('Total Late :', 61, currentY + 33);
-                    doc.text(String(lateCount), 115, currentY + 33, { align: 'right' });
+                    // Row 3 (boxTopY + 33)
+                    doc.setFont('times', 'bold');
+                    doc.text('Total Absent:', boxX + 26, boxTopY + 33);
+                    doc.setFont('times', 'normal');
+                    doc.text(String(absentCount), boxX + 90, boxTopY + 33, { align: 'right' });
 
-                    doc.text('Total Leave :', 56, currentY + 44);
-                    doc.text(String(leaveCount), 115, currentY + 44, { align: 'right' });
+                    doc.setFont('times', 'bold');
+                    doc.text('Total Early Out:', boxX + 98, boxTopY + 33);
+                    doc.setFont('times', 'normal');
+                    doc.text(String(earlyOutCount), boxX + 186, boxTopY + 33, { align: 'right' });
 
-                    // Right Column (Col 2)
-                    doc.text('Total Weekend:', 135, currentY);
-                    doc.text(String(weekendCount), 215, currentY, { align: 'right' });
+                    // Row 4 (boxTopY + 44)
+                    doc.setFont('times', 'bold');
+                    doc.text('Total Late:', boxX + 34, boxTopY + 44);
+                    doc.setFont('times', 'normal');
+                    doc.text(String(lateCount), boxX + 90, boxTopY + 44, { align: 'right' });
 
-                    doc.text('Total Holiday:', 140, currentY + 11);
-                    doc.text(String(holidayCount), 215, currentY + 11, { align: 'right' });
+                    doc.setFont('times', 'bold');
+                    doc.text('Total Att.:', boxX + 117, boxTopY + 44);
+                    doc.setFont('times', 'normal');
+                    doc.text(String(totalAtt), boxX + 186, boxTopY + 44, { align: 'right' });
 
-                    doc.text('Total Early Out:', 133, currentY + 22);
-                    doc.text(String(earlyOutCount), 215, currentY + 22, { align: 'right' });
+                    // Row 5 (boxTopY + 55)
+                    doc.setFont('times', 'bold');
+                    doc.text('Total Leave:', boxX + 30, boxTopY + 55);
+                    doc.setFont('times', 'normal');
+                    doc.text(String(leaveCount), boxX + 90, boxTopY + 55, { align: 'right' });
 
-                    doc.text('Total Att.:', 153, currentY + 33);
-                    doc.text(String(totalAtt), 215, currentY + 33, { align: 'right' });
+                    // 3. Column Totals Beside the Box
+                    doc.setFont('times', 'bold');
+                    doc.setFontSize(8);
+                    doc.setTextColor(0, 0, 0);
 
-                    // 3. Signature Block
-                    var sigLineY = currentY + 68;
-                    var sigTextY = sigLineY + 10;
+                    // Under column Late (center X ~302) on Row 1
+                    doc.text(totalLateStr, 302, boxTopY + 11, { align: 'center' });
+
+                    // Under column W. Hour(s) (center X ~457) on Row 1
+                    doc.text(totalWorkStr, 457, boxTopY + 11, { align: 'center' });
+
+                    // Average Time on Row 4
+                    doc.text('Average Time:     ' + avgTimeStr, 380, boxTopY + 44);
+
+                    // 4. Signature Block (Above Footer)
+                    var sigLineY = PH - 58;
+                    var sigTextY = PH - 48;
 
                     doc.setDrawColor(0, 0, 0);
-                    doc.setLineWidth(0.5);
+                    doc.setLineWidth(0.6);
 
                     // Prepared by (Left)
-                    doc.line(LEFT_MARGIN + 5, sigLineY, LEFT_MARGIN + 95, sigLineY);
+                    doc.line(LEFT_MARGIN, sigLineY, LEFT_MARGIN + 95, sigLineY);
                     doc.setFont('times', 'normal');
                     doc.setFontSize(7.5);
-                    doc.text('Prepared by', LEFT_MARGIN + 50, sigTextY, { align: 'center' });
+                    doc.text('Prepared by', LEFT_MARGIN + 47.5, sigTextY, { align: 'center' });
 
                     // Checked by (Center)
-                    doc.line(PW / 2 - 45, sigLineY, PW / 2 + 45, sigLineY);
+                    doc.line(PW / 2 - 47.5, sigLineY, PW / 2 + 47.5, sigLineY);
                     doc.text('Checked by', PW / 2, sigTextY, { align: 'center' });
 
                     // Authorized by (Right)
-                    doc.line(PW - RIGHT_MARGIN - 95, sigLineY, PW - RIGHT_MARGIN - 5, sigLineY);
-                    doc.text('Authorized by', PW - RIGHT_MARGIN - 50, sigTextY, { align: 'center' });
+                    doc.line(PW - RIGHT_MARGIN - 95, sigLineY, PW - RIGHT_MARGIN, sigLineY);
+                    doc.text('Authorized by', PW - RIGHT_MARGIN - 47.5, sigTextY, { align: 'center' });
 
-                    // 4. Status Legend
-                    var legendY = sigTextY + 16;
+                    // 5. Status Legend
+                    var legendLine1Y = PH - 35;
+                    var legendLine2Y = PH - 27;
+
                     doc.setFont('times', 'normal');
                     doc.setFontSize(6.5);
                     doc.setTextColor(0, 0, 0);
-                    doc.text('Status Legend: P-Present, L- Late, A- Absent, W- Weekend, H- Holiday, CL- Casual Leave, SL- Sick Leave, UL- Unpaid Leave, ML- Maternity Leave,', PW / 2, legendY, { align: 'center' });
-                    doc.text('PL- Paternity Leave, MarL- Marriage Leave, HL- Hajj Leave, UmrL- Umrah Leave', PW / 2, legendY + 8, { align: 'center' });
+                    doc.text('Status Legend: P-Present, L- Late, A- Absent, W- Weekend, H- Holiday, CL- Casual Leave, SL- Sick Leave, UL- Unpaid Leave, ML- Maternity Leave,', PW / 2, legendLine1Y, { align: 'center' });
+                    doc.text('PL- Paternity Leave, MarL- Marriage Leave, HL- Hajj Leave, UmrL- Umrah Leave', PW / 2, legendLine2Y, { align: 'center' });
                 });
 
                 if (typeof doc.putTotalPages === 'function') {
