@@ -54,40 +54,52 @@ namespace GCTL.UI.Core.Controllers
         }
 
         [HttpPost("HrmLeaveSummaryReport/PreviewReport")]
-        public async Task<IActionResult> PreviewReport([FromBody] LeaveSummaryExportRequest request)
+        public async Task<IActionResult> PreviewReport([FromBody] LeaveSummaryExportRequest? request)
         {
             try
             {
+                if (request == null)
+                    request = new LeaveSummaryExportRequest { ExportFormat = "pdf" };
+                if (request.FilterData == null)
+                    request.FilterData = new LeaveSummaryFilterViewModel();
+                if (request.FilterData.CompanyCodes == null || !request.FilterData.CompanyCodes.Any())
+                    request.FilterData.CompanyCodes = new List<string> { "001" };
+
                 BaseViewModel model = new BaseViewModel();
                 model.ToAudit(LoginInfo);
 
                 var data = await reportService.GetDataAsync(request.FilterData);
-                if (data.LeaveSummary == null || !data.LeaveSummary.Any())
+                if (data == null || data.LeaveSummary == null || !data.LeaveSummary.Any())
                     return NotFound();
-
-
 
                 var pdfBytes = await reportService.GeneratePdfReport(data.LeaveSummary, data.LeaveTypes, model);
                 return File(pdfBytes, "application/pdf");
             }
             catch (Exception)
             {
-
                 throw;
             }
-            
         }
 
         [HttpPost("HrmLeaveSummaryReport/ExportReport")]
-        public async Task<IActionResult> ExportReport([FromBody] LeaveSummaryExportRequest request)
+        public async Task<IActionResult> ExportReport([FromBody] LeaveSummaryExportRequest? request)
         {
             try
             {
+                if (request == null)
+                    request = new LeaveSummaryExportRequest { ExportFormat = "pdf" };
+                if (request.FilterData == null)
+                    request.FilterData = new LeaveSummaryFilterViewModel();
+                if (request.FilterData.CompanyCodes == null || !request.FilterData.CompanyCodes.Any())
+                    request.FilterData.CompanyCodes = new List<string> { "001" };
+
+                var format = string.IsNullOrWhiteSpace(request.ExportFormat) ? "pdf" : request.ExportFormat.ToLower();
+
                 BaseViewModel model = new BaseViewModel();
                 model.ToAudit(LoginInfo);
 
                 var data = await reportService.GetDataAsync(request.FilterData);
-                if (data.LeaveSummary == null || !data.LeaveSummary.Any())
+                if (data == null || data.LeaveSummary == null || !data.LeaveSummary.Any())
                     return NotFound();
 
                 byte[] fileBytes;
@@ -95,7 +107,7 @@ namespace GCTL.UI.Core.Controllers
                 string contentType;
                 string baseFileName = $"LeaveSummaryReport_{DateTime.Now:yyyyMMdd_HHmmss}";
 
-                switch (request.ExportFormat.ToLower())
+                switch (format)
                 {
                     case "pdf":
                         fileBytes = await reportService.GeneratePdfReport(data.LeaveSummary, data.LeaveTypes, model);
@@ -119,11 +131,14 @@ namespace GCTL.UI.Core.Controllers
                         fileBytes = await reportService.GeneratePdfReport(data.LeaveSummary, data.LeaveTypes, model);
                         fileName = $"{baseFileName}.pdf";
                         contentType = "application/pdf";
-                        Response.Headers.Add("Content-Disposition", $"inline; filename=\"{fileName}\"");
+                        Response.Headers["Content-Disposition"] = $"inline; filename=\"{fileName}\"";
                         return File(fileBytes, contentType);
 
                     default:
-                        return BadRequest();
+                        fileBytes = await reportService.GeneratePdfReport(data.LeaveSummary, data.LeaveTypes, model);
+                        fileName = $"{baseFileName}.pdf";
+                        contentType = "application/pdf";
+                        break;
                 }
                 return File(fileBytes, contentType, fileName);
             }

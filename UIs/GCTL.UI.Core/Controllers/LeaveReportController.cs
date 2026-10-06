@@ -47,19 +47,32 @@ namespace GCTL.Web.Controllers
                 if (!hasPermission && !developerMode)
                     return PartialView("_NoAccessView", "You have no access.");
 
-                if (model?.Company == null)
-                    return Json(new { success = false, message = "Please fill company name." });
+                if (model == null)
+                    model = new LeaveReportArrayViewModel();
 
-                model.DateTo = DateTime.ParseExact(model.DateToStr, "dd/MM/yyyy", CultureInfo.InvariantCulture);
-                model.DateFrom = DateTime.ParseExact(model.DateFromStr, "dd/MM/yyyy", CultureInfo.InvariantCulture);
+                if (model.Company == null || model.Company.Length == 0)
+                    model.Company = new[] { "001" };
 
-                //var data = await _leaveReportService.GetReportArrayAsync(model);
+                if (!string.IsNullOrWhiteSpace(model.DateToStr))
+                {
+                    if (DateTime.TryParseExact(model.DateToStr, new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dtTo))
+                        model.DateTo = dtTo;
+                    else if (DateTime.TryParse(model.DateToStr, out dtTo))
+                        model.DateTo = dtTo;
+                }
 
+                if (!string.IsNullOrWhiteSpace(model.DateFromStr))
+                {
+                    if (DateTime.TryParseExact(model.DateFromStr, new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dtFrom))
+                        model.DateFrom = dtFrom;
+                    else if (DateTime.TryParse(model.DateFromStr, out dtFrom))
+                        model.DateFrom = dtFrom;
+                }
 
                 var grouped = await _leaveReportService.GetLeaveReportArrayAsync(model);
 
                 // Group into same structure JS expects
-                var data = grouped
+                var data = (grouped ?? new List<LeaveApplicartionGridVM>())
                     .GroupBy(x => "DataPath")
                     .ToDictionary(
                         g => g.Key,
@@ -76,13 +89,11 @@ namespace GCTL.Web.Controllers
                                     })
                         });
 
-                
-
                 return Json(new { success = true, message = "Data Get", data });
             }
-            catch
+            catch (Exception ex)
             {
-                throw;
+                return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
 
@@ -92,21 +103,36 @@ namespace GCTL.Web.Controllers
         {
             try
             {
-                if (model?.Company == null)
-                    return Json(new { success = false, message = "Please select a company." });
+                if (model == null)
+                    model = new LeaveReportArrayViewModel();
 
-                model.DateTo = DateTime.ParseExact(model.DateToStr, "dd/MM/yyyy", CultureInfo.InvariantCulture);
-                model.DateFrom = DateTime.ParseExact(model.DateFromStr, "dd/MM/yyyy", CultureInfo.InvariantCulture);
+                if (model.Company == null || model.Company.Length == 0)
+                    model.Company = new[] { "001" };
+
+                if (!string.IsNullOrWhiteSpace(model.DateToStr))
+                {
+                    if (DateTime.TryParseExact(model.DateToStr, new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dtTo))
+                        model.DateTo = dtTo;
+                    else if (DateTime.TryParse(model.DateToStr, out dtTo))
+                        model.DateTo = dtTo;
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.DateFromStr))
+                {
+                    if (DateTime.TryParseExact(model.DateFromStr, new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dtFrom))
+                        model.DateFrom = dtFrom;
+                    else if (DateTime.TryParse(model.DateFromStr, out dtFrom))
+                        model.DateFrom = dtFrom;
+                }
 
                 string sdate = model.DateFrom != DateTime.MinValue ? model.DateFrom.ToString("dd-MM-yyyy") : null;
                 string edate = model.DateTo != DateTime.MinValue ? model.DateTo.ToString("dd-MM-yyyy") : null;
 
                 var flat = await _leaveReportService.GetLeaveReportArrayAsync(model);
 
-                if (flat.Count() == 0)
+                if (flat == null || !flat.Any())
                 {
-                    return Json(new { success = false, message ="No Data Found" });
-
+                    return Json(new { success = false, message = "No Data Found" });
                 }
 
                 // Group flat list → Dictionary structure GeneratePdfReportArray expects
@@ -170,28 +196,44 @@ namespace GCTL.Web.Controllers
                 if (!hasPermission && !developerMode)
                     return PartialView("_NoAccessView", "You have no access.");
 
-                if (model?.Company == null || model.ReportFormat == null)
-                    return Ok(new { success = false, message = "Please fill in Company Name and select a Report Format." });
+                if (model == null)
+                    model = new LeaveReportArrayViewModel();
 
-                model.DateTo = DateTime.ParseExact(model.DateToStr, "dd/MM/yyyy", CultureInfo.InvariantCulture);
-                model.DateFrom = DateTime.ParseExact(model.DateFromStr, "dd/MM/yyyy", CultureInfo.InvariantCulture);
+                if (model.Company == null || model.Company.Length == 0)
+                    model.Company = new[] { "001" };
+
+                if (string.IsNullOrWhiteSpace(model.ReportFormat))
+                    model.ReportFormat = "pdf";
+
+                if (!string.IsNullOrWhiteSpace(model.DateToStr))
+                {
+                    if (DateTime.TryParseExact(model.DateToStr, new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dtTo))
+                        model.DateTo = dtTo;
+                    else if (DateTime.TryParse(model.DateToStr, out dtTo))
+                        model.DateTo = dtTo;
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.DateFromStr))
+                {
+                    if (DateTime.TryParseExact(model.DateFromStr, new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dtFrom))
+                        model.DateFrom = dtFrom;
+                    else if (DateTime.TryParse(model.DateFromStr, out dtFrom))
+                        model.DateFrom = dtFrom;
+                }
 
                 string sdate = model.DateFrom != DateTime.MinValue ? model.DateFrom.ToString("dd-MM-yyyy") : null;
                 string edate = model.DateTo != DateTime.MinValue ? model.DateTo.ToString("dd-MM-yyyy") : null;
 
-                //var data = await _leaveReportService.GetReportArrayAsync(model);
-               
-
                 var ggdata = await _leaveReportService.GetLeaveReportArrayAsync(model);
 
-                if (ggdata.Count() == 0 || ggdata == null)
+                if (ggdata == null || !ggdata.Any())
                 {
                     return Ok(new { success = false, message = "No data found" });
                 }
 
                 // Convert List → Dictionary<companyName, CompanyLeaveDataVM>
                 var data = ggdata
-                    .GroupBy(x =>  "Datapath")
+                    .GroupBy(x => "Datapath")
                     .ToDictionary(
                         g => g.Key,
                         g => new CompanyLeaveDataVM
@@ -229,25 +271,22 @@ namespace GCTL.Web.Controllers
                                     })
                         });
 
-               
-
-                if (model.ReportFormat == "pdf")
-                {
-                    var bytes = _leaveReportService.GeneratePdfReportArray(data, sdate, edate);
-                    return File(bytes, "application/pdf", $"LeaveReport_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
-                }
-
-                if (model.ReportFormat == "excel")
+                if (string.Equals(model.ReportFormat, "excel", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(model.ReportFormat, "downloadExcel", StringComparison.OrdinalIgnoreCase))
                 {
                     var bytes = _leaveReportService.GenerateExcelReportArray(data, sdate, edate);
                     return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"LeaveReport_{DateTime.Now:yyyyMMdd}.xlsx");
                 }
-
-                return Ok(new { success = false, message = "Invalid report format." });
+                else
+                {
+                    // Default to PDF (for "pdf", "downloadPdf", or any other selection)
+                    var bytes = _leaveReportService.GeneratePdfReportArray(data, sdate, edate);
+                    return File(bytes, "application/pdf", $"LeaveReport_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+                }
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { success = false, message =  ex.Message, error = ex.Message });
+                return StatusCode(500, new { success = false, message = ex.Message, error = ex.Message });
             }
         }
 

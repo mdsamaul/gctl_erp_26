@@ -140,44 +140,86 @@ namespace GCTL.Service.DashboardAttendance
             string loginEmployeeId,   // ← নতুন
             string accessCodeId)      // ← নতুন
         {
-            using var con = new SqlConnection(_conn);
-            await con.OpenAsync();
-
-            var param = new DynamicParameters();
-            param.Add("@CompanyCode", string.IsNullOrEmpty(companyCode) ? null : companyCode, DbType.String);
-            param.Add("@BranchCode", string.IsNullOrEmpty(branchCode) ? null : branchCode, DbType.String);
-            param.Add("@DepartmentCode", string.IsNullOrEmpty(departmentCode) ? null : departmentCode, DbType.String);
-            param.Add("@Year", year, DbType.Int32);
-            param.Add("@Page", page, DbType.Int32);
-            param.Add("@PageSize", pageSize, DbType.Int32);
-            param.Add("@Search", string.IsNullOrEmpty(search) ? null : search, DbType.String);
-            param.Add("@EmployeeId", string.IsNullOrEmpty(employeeId) ? null : employeeId, DbType.String);
-            param.Add("@LoginEmployeeId", string.IsNullOrEmpty(loginEmployeeId) ? null : loginEmployeeId, DbType.String);
-            param.Add("@AccessCodeId", string.IsNullOrEmpty(accessCodeId) ? null : accessCodeId, DbType.String);
-            param.Add("@ReportType", "Dashboard", DbType.String);
-
-            using var multi = await con.QueryMultipleAsync(
-                "GetLeaveReport100",
-                param,
-                commandType: CommandType.StoredProcedure
-            );
-
-            var summary = await multi.ReadFirstOrDefaultAsync<LeaveSummaryCardDto>()
-                          ?? new LeaveSummaryCardDto();
-
-            var leaveTypes = (await multi.ReadAsync<LeaveTypeDto>()).ToList();
-
-            var employees = (await multi.ReadAsync<EmployeeLeaveRowDto>()).ToList();
-
-            int totalCount = employees.FirstOrDefault()?.TotalCount ?? 0;
-
-            return new LeaveDashboardResponseDto
+            try
             {
-                Summary = summary,
-                LeaveTypes = leaveTypes,
-                Employees = employees,
-                TotalCount = totalCount
-            };
+                using var con = new SqlConnection(_conn);
+                await con.OpenAsync();
+
+                var param = new DynamicParameters();
+                param.Add("@CompanyCode", string.IsNullOrEmpty(companyCode) ? null : companyCode, DbType.String);
+                param.Add("@BranchCode", string.IsNullOrEmpty(branchCode) ? null : branchCode, DbType.String);
+                param.Add("@DepartmentCode", string.IsNullOrEmpty(departmentCode) ? null : departmentCode, DbType.String);
+                param.Add("@Year", year, DbType.Int32);
+                param.Add("@Page", page, DbType.Int32);
+                param.Add("@PageSize", pageSize, DbType.Int32);
+                param.Add("@Search", string.IsNullOrEmpty(search) ? null : search, DbType.String);
+                param.Add("@EmployeeId", string.IsNullOrEmpty(employeeId) ? null : employeeId, DbType.String);
+                if (!string.IsNullOrEmpty(loginEmployeeId))
+                    param.Add("@LoginEmployeeId", loginEmployeeId, DbType.String);
+                if (!string.IsNullOrEmpty(accessCodeId))
+                    param.Add("@AccessCodeId", accessCodeId, DbType.String);
+                param.Add("@ReportType", "Dashboard", DbType.String);
+
+                SqlMapper.GridReader multi;
+                try
+                {
+                    multi = await con.QueryMultipleAsync(
+                        "GetLeaveReport100",
+                        param,
+                        commandType: CommandType.StoredProcedure
+                    );
+                }
+                catch (SqlException ex) when (ex.Number == 8144 || (ex.Message != null && ex.Message.Contains("too many arguments")))
+                {
+                    // Fallback without @LoginEmployeeId and @AccessCodeId if SP doesn't support them
+                    var fallbackParam = new DynamicParameters();
+                    fallbackParam.Add("@CompanyCode", string.IsNullOrEmpty(companyCode) ? null : companyCode, DbType.String);
+                    fallbackParam.Add("@BranchCode", string.IsNullOrEmpty(branchCode) ? null : branchCode, DbType.String);
+                    fallbackParam.Add("@DepartmentCode", string.IsNullOrEmpty(departmentCode) ? null : departmentCode, DbType.String);
+                    fallbackParam.Add("@Year", year, DbType.Int32);
+                    fallbackParam.Add("@Page", page, DbType.Int32);
+                    fallbackParam.Add("@PageSize", pageSize, DbType.Int32);
+                    fallbackParam.Add("@Search", string.IsNullOrEmpty(search) ? null : search, DbType.String);
+                    fallbackParam.Add("@EmployeeId", string.IsNullOrEmpty(employeeId) ? null : employeeId, DbType.String);
+                    fallbackParam.Add("@ReportType", "Dashboard", DbType.String);
+
+                    multi = await con.QueryMultipleAsync(
+                        "GetLeaveReport100",
+                        fallbackParam,
+                        commandType: CommandType.StoredProcedure
+                    );
+                }
+
+                using (multi)
+                {
+                    var summary = await multi.ReadFirstOrDefaultAsync<LeaveSummaryCardDto>()
+                                  ?? new LeaveSummaryCardDto();
+
+                    var leaveTypes = (await multi.ReadAsync<LeaveTypeDto>()).ToList();
+
+                    var employees = (await multi.ReadAsync<EmployeeLeaveRowDto>()).ToList();
+
+                    int totalCount = employees.FirstOrDefault()?.TotalCount ?? 0;
+
+                    return new LeaveDashboardResponseDto
+                    {
+                        Summary = summary,
+                        LeaveTypes = leaveTypes,
+                        Employees = employees,
+                        TotalCount = totalCount
+                    };
+                }
+            }
+            catch (Exception)
+            {
+                return new LeaveDashboardResponseDto
+                {
+                    Summary = new LeaveSummaryCardDto(),
+                    LeaveTypes = new List<LeaveTypeDto>(),
+                    Employees = new List<EmployeeLeaveRowDto>(),
+                    TotalCount = 0
+                };
+            }
         }
     }
 }

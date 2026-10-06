@@ -1,4 +1,5 @@
-﻿using GCTL.Service.Common;
+using GCTL.Core.ViewModels.Dashboard;
+using GCTL.Service.Common;
 using GCTL.Service.DashboardAttendance;
 using GCTL.UI.Core.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -125,6 +126,7 @@ namespace GCTL.UI.Core.Controllers
             try
             {
                 var draw = Request.Form["draw"].FirstOrDefault();
+                int drawVal = int.TryParse(draw, out var d) ? d : 1;
                 var start = Convert.ToInt32(Request.Form["start"].FirstOrDefault() ?? "0");
                 var length = Convert.ToInt32(Request.Form["length"].FirstOrDefault() ?? "10");
                 var search = Request.Form["search[value]"].FirstOrDefault() ?? "";
@@ -140,8 +142,8 @@ namespace GCTL.UI.Core.Controllers
                 int year = int.TryParse(yearStr, out var y) ? y : DateTime.Now.Year;
 
                 // ── Access control: logged-in user context ──────────
-                var loginEmployeeId = LoginInfo.EmployeeId;
-                var accessCodeId = LoginInfo.AccessCode;
+                var loginEmployeeId = LoginInfo?.EmployeeId;
+                var accessCodeId = LoginInfo?.AccessCode;
 
                 var result = await _attendanceSvc.GetLeaveDashboardAsync(
                     string.IsNullOrWhiteSpace(companyCode) ? null : companyCode.Trim(),
@@ -156,9 +158,22 @@ namespace GCTL.UI.Core.Controllers
                     accessCodeId
                 );
 
+                if (result == null)
+                {
+                    return Json(new
+                    {
+                        draw = drawVal,
+                        recordsTotal = 0,
+                        recordsFiltered = 0,
+                        data = new List<EmployeeLeaveRowDto>(),
+                        summary = new LeaveSummaryCardDto(),
+                        leaveTypes = new List<LeaveTypeDto>()
+                    });
+                }
+
                 return Json(new
                 {
-                    draw = Convert.ToInt32(draw),
+                    draw = drawVal,
                     recordsTotal = result.TotalCount,
                     recordsFiltered = result.TotalCount,
                     data = result.Employees,
@@ -168,7 +183,16 @@ namespace GCTL.UI.Core.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return Json(new
+                {
+                    draw = 1,
+                    recordsTotal = 0,
+                    recordsFiltered = 0,
+                    data = new List<object>(),
+                    summary = new { totalApplied = 0, approved = 0, canceled = 0, pending = 0 },
+                    leaveTypes = new List<object>(),
+                    error = ex.Message
+                });
             }
         }
 

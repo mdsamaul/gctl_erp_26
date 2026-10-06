@@ -1,339 +1,355 @@
-﻿@model GCTL.Core.ViewModels.BaseViewModel
-
+@model GCTL.Core.ViewModels.BaseViewModel
 @{
-     ViewData["Title"] = "Report";
-     Layout = "~/Views/Shared/_Layout.cshtml";
+    Model.Breadcrumb = "Leave Report";
+    Model.PageTitle = "Leave Application Report";
+    ViewData["Title"] = Model.PageTitle;
+    Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
 <style>
-
-    .btn-toolbar .btn {
-        -webkit-border-radius: 0px !important;
+    .headerToobar {
+        /* background: linear-gradient(to right, rgba(34, 211, 238, .1), #fff); */
+        box-shadow: 3px 0 6px rgba(0, 0, 0, 0.2);
+        border-radius: 0px 11px 11px 0px;
     }
 
-    .btn-toolbar .btn-group {
-        min-width: 0px !important;
+    #btnPreviewPdf, #downloadReport, #exportButtonNew, #previewBtn2 {
+        transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        min-width: 120px;
+        min-height: 25px;
+        position: relative;
+        overflow: visible;
     }
 
-    #exportButtonNew,
-    #previewBtn2 {
-        width: 115px;
-    }
-    #exportButtonNew:hover,
-    #previewBtn2:hover {
-        background-color: #ffffe6 !important;
-        border-color: #28a745 !important;
-        color: green !important;
-       
+        #btnPreviewPdf:hover,
+        #downloadReport:hover,
+        #exportButtonNew:hover,
+        #previewBtn2:hover {
+            background-color: rgba(173, 255, 47, 0.2) !important;
+            color: #1e90ff !important;
+            border-color: #1e90ff !important;
+            box-shadow: 0 4px 10px rgba(30, 144, 255, 0.5) !important;
+        }
+
+        #btnPreviewPdf i,
+        #btnPreviewPdf span,
+        #downloadReport i,
+        #downloadReport span,
+        #exportButtonNew i,
+        #exportButtonNew span,
+        #previewBtn2 i,
+        #previewBtn2 span {
+            transition: transform 0.3s ease;
+            display: inline-block;
+            transform: scale(1);
+            margin-right: 2px;
+        }
+
+        #btnPreviewPdf:hover i,
+        #downloadReport:hover i,
+        #exportButtonNew:hover i,
+        #previewBtn2:hover i {
+            transform: scale(1.3);
+        }
+
+    .multiselect {
+        width: 100% !important;
+        text-align: left !important;
     }
 
-  
+    .multiselect-container {
+        width: 100% !important;
+    }
 
+    .multiselect.dropdown-toggle {
+        text-align: left !important;
+    }
+
+    .multiselect-container .form-check-input[type="radio"] {
+        display: none;
+    }
+
+    #pdfPreviewContainer {
+        border: 1px solid #ccc;
+        padding: 5px;
+        background: #fff;
+    }
+
+    @@media (min-width: 1200px) and (max-width: 1400px) {
+
+        .multiselect {
+            padding: 3px 6px !important;
+            font-size: 12px !important;
+        }
+
+        .multiselect-container {
+            font-size: 12px;
+        }
+
+        label.col-3.text-right {
+            font-size: 13px;
+            padding-right: 2px !important;
+        }
+
+        .row.align-items-center > label.col-3 {
+            flex: 0 0 25%;
+            max-width: 25%;
+        }
+
+        .row.align-items-center > .col-9.col-md-7 {
+            flex: 0 0 70%;
+            max-width: 70%;
+            padding-left: 4px !important;
+        }
+
+        .row.align-items-center > .col-md-2,
+        .row.align-items-center > .col-md-1 {
+            flex: 0 0 15%;
+            max-width: 15%;
+        }
+
+        .form-control.form-control-sm {
+            font-size: 12px;
+            padding: 3px 6px;
+            height: calc(1.4em + 0.5rem + 2px);
+        }
+
+        input.flatDate.form-control-sm {
+            font-size: 12px;
+            padding: 3px 6px;
+        }
+
+        .col-md-12.d-flex.align-items-center[style*="gap:30px"] {
+            gap: 15px !important;
+        }
+
+        .form-check-inline {
+            margin: 0;
+        }
+
+        label.ms-1 {
+            font-size: 12px;
+        }
+
+        #btnPreviewPdf, #downloadReport, #exportButtonNew, #previewBtn2 {
+            min-width: 100px;
+            min-height: 28px;
+            font-size: 12px;
+            padding: 2px 8px;
+        }
+
+        h6.pt-3.px-3.pb-0 {
+            font-size: 14px;
+            padding-top: 8px !important;
+        }
+
+        .export-text {
+            font-size: 12px !important;
+        }
+
+        .right-btn-margin {
+            margin-right: 20px !important;
+        }
+    }
+
+    @@media (min-width: 1401px) {
+        .right-btn-margin {
+            margin-right: -30px !important;
+        }
+    }
 </style>
 
-<div class="row">
-    <div class="col-12">
-        <partial name="_PageHeader" model="@Model" />
+<div class="container-fluid">
+    <partial name="_PageHeader" model="Model"></partial>
+</div>
 
-    </div>
+<input type="hidden" id="hdnAccessCode" value="@(ViewBag.AccessCode ?? "")" />
 
-    <div class="col-12">
-        <div class="card mx-2">
-            <div class="card-header  ">
-                
-                <div class="row">
-	                <div class="col-md-5 px-0">
-                        <h5 class="page-title px-0 text-black font-weight-bold ">Leave Application Report</h5>
-	                </div>
-	                <div class="col-md-7">
-		                <div class="btn-toolbar d-flex justify-content-end">
-			                <div class="btn-group">
-
-				                @* <button type="button" class="btn btn-default success-btn js-HomeOfficeRequest-report-save" id="submitButton">
-					                <i class="fa fa-save">&nbsp;</i> Save
-				                </button>
-				                <button type="button" class="btn btn-default danger-btn" id="js-HomeOfficeRequest-report-delete-confirm">
-					                <i class="fa fa-trash">&nbsp;</i> Delete
-				                </button> *@
-				                <button type="button" class="btn btn-default primary-btn " id="js-leveSummery-report-clear">
-					                <i class="fa fa-eraser">&nbsp;</i> Clear
-				                </button>
-				
-				                <button type="button" class="btn btn-default info-btn js-leveSummery">
-					                <i class="fas fa-file-export">&nbsp;</i> Export
-				                </button>
-				                <button type="button" class="btn btn-default warning-btn js-HomeOfficeRequest-report-favorite">
-					                <i class="fa fa-star">&nbsp;</i> Favorite
-				                </button>
-			                </div>
-		                </div>
-	                </div>
-	                <hr/>
-                </div>
-              
-            </div>
-
-            <form id="leaveApplicationForm" method="post">
-                <div class="card-body">
-
-                    <div class="row mb-1">
-                        <div class="col-6">
-                            <h6 class="font-weight-bold mb-1">Search By:</h6>
-                            <hr class="mt-0 mb-3">
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <!-- Left Column -->
-                        <div class="col-md-6">
-                            <div class="row align-items-center mb-3">
-                                <label class="col-5 text-right mb-0 pr-3 col-form-label-sm">Company</label>
-                                <div class="col-6">
-                                    <select id="companyDropdown" multiple="multiple" name="company" class="form-control form-control-sm" title="--Select--"></select>
-                                </div>
-                                <div class="col-1"></div>
-                            </div>
-
-                            <div class="row align-items-center mb-3">
-                                <label class="col-5 text-right mb-0 pr-3 col-form-label-sm">Department</label>
-                                <div class="col-6">
-                                    <select id="departmentDropdown" multiple="multiple" name="department" class="form-control form-control-sm" title="--Select--"></select>
-                                </div>
-                                <div class="col-1"></div>
-                            </div>
-
-                            <div class="row align-items-center mb-3">
-                                <label class="col-5 text-right mb-0 pr-3 col-form-label-sm">Apply Leave Format</label>
-                                <div class="col-6">
-                                    <select id="leaveFormatDropdown" multiple="multiple" name="leaveFormat" class="form-control form-control-sm" title="--Select--">
-                                        <option value="FullLeave">Full Leave</option>
-                                        <option value="halfDayLeave">Half Day Leave</option>
-                                        <option value="ShortLeave">Short Leave</option>
-                                    </select>
-                                </div>
-                                <div class="col-1"></div>
-                            </div>
-
-                            <div class="row align-items-center mb-3">
-                                <label class="col-5 text-right mb-0 pr-3 col-form-label-sm">Date From</label>
-                                <div class="col-6">
-                                    <input type="text" id="dateFromStr" name="dateFromStr" class="form-control form-control-sm" />
-                                </div>
-                                <div class="col-1"></div>
-                            </div>
-                        </div>
-
-                        <!-- Right Column -->
-                        <div class="col-md-6">
-                            <div class="row align-items-center mb-3">
-                                <label class="col-5 text-right mb-0 pr-3 col-form-label-sm">Branch</label>
-                                <div class="col-6">
-                                    <select id="branchDropdown" multiple="multiple" name="branch" class="form-control form-control-sm" title="--Select--"></select>
-                                </div>
-                                <div class="col-1"></div>
-                            </div>
-
-                            <div class="row align-items-center mb-3">
-                                <label class="col-5 text-right mb-0 pr-3 col-form-label-sm">Employee</label>
-                                <div class="col-6">
-                                    <select id="employeeDropdown" multiple="multiple" name="employee" class="form-control form-control-sm" title="--Select--"></select>
-                                </div>
-                                <div class="col-1"></div>
-                            </div>
-
-                           
-
-                            <div class="row align-items-center mb-3">
-                                <label class="col-5 text-right mb-0 pr-3 col-form-label-sm">Leave Status</label>
-                                <div class="col-6">
-                                    <select id="leaveStatusDropdown" multiple="multiple" name="leaveStatus" class="form-control form-control-sm" title="--Select--">
-                                        <option value="pending">Pending</option>
-                                        <option value="Approved">Approved</option>
-                                        <option value="Canceled">Cancelled</option>
-                                    </select>
-                                </div>
-                                <div class="col-1"></div>
-                            </div>
-
-                            <div class="row align-items-center mb-3">
-                                <label class="col-5 text-right mb-0 pr-3 col-form-label-sm">To</label>
-                                <div class="col-6">
-                                    <input type="text" id="dateToStr" name="dateToStr" class="form-control form-control-sm" />
-                                </div>
-                                <div class="col-1"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Report Option -->
-                    <div class="row mt-2 mb-1">
-                        <div class="col-6">
-                            <h6 class="font-weight-bold mb-1">Report Option:</h6>
-                            <hr class="mt-0 mb-3">
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="row align-items-center mb-3">
-                                <label class="col-5 text-right mb-0 pr-3 col-form-label-sm">Report Format</label>
-                                <div class="col-6">
-                                    <select id="reportFormatDropdown" name="reportFormat" class="form-control form-control-sm selectpickerReport">
-                                        <option value="">--Select--</option>
-                                        <option value="pdf">PDF</option>
-                                        <option value="excel">Excel</option>
-                                    </select>
-                                </div>
-                                <div class="col-1"></div>
-                            </div>
-                        </div>
-
-                        <div class="col-md-6"></div>
-                        <div class="col-md-6"></div>
-                        <div class="col-md-6">
-                            <div class="row">
-                                <div class="col-11 d-flex justify-content-end">
-                                    <button id="exportButtonNew" class="btn btn-default success-btn btn-sm mr-2">
-                                        <i class="fas fa-file-export"></i> Export
-                                    </button>
-                                    @* <button id="previewBtn1" class="btn btn-default success-btn btn-sm"> *@
-                                    <button id="previewBtn2" class="btn btn-default success-btn btn-sm">
-                                        <i class="fas fa-eye"></i> Preview
-                                    </button>
-                                </div>
-                                <div class="col-1"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </form>
+<section class="content consistent-look px-2">
+    <div class="card">
+        <div class="card-header py-1">
+            <partial name="_Toolbars" model="new ToobarModel() { Title = Model.Breadcrumb, Code = Model.Code, Name = Model.UserInfoEmployeeId }"></partial>
         </div>
 
-        <div id="loadingSpinner1" style="display: none;" class="text-center my-4">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden"></span>
-            </div>
-        </div>
-    </div>
-</div>
+        <form id="leaveApplicationForm" method="post">
+            <div class="card-body border">
+                <div class="">
+                    <div class="col-12 col-md-5" style="padding-right: 0px;">
+                        <h6 class="pt-3 px-3 pb-0 font-weight-bold fs-6 mb-0">Search By :</h6>
 
-<div class="row">
-    <div class="col-md-12">
-        <div id="leaveContainer"></div>
-    </div>
-</div>
-
-<div class="row mt-3" id="pdfPreviewContainer" style="display:none;">
-    <div class="col-md-12">
-        <iframe id="pdfPreview" style="width:100%; height:800px; border:1px solid #ddd;"></iframe>
-    </div>
-</div>
-
-@section Scripts {
-    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
-
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
-    <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-
-    <script>
-        $(document).ready(function () {
-            $('#previewBtn1').click(function (e) {
-                e.preventDefault();
-                generatePreview();
-            });
-
-            function generatePreview() {
-                $('#loadingSpinner1').show();
-                $('#leaveContainer').empty();
-
-                var formData = new FormData($('#leaveApplicationForm')[0]);
-
-                $.ajax({
-                    url: '/LeaveReport/PreviewLeaveReportArray',  // <-- updated
-                    type: 'POST',
-                    data: formData,
-                    processData: false,
-                    contentType: false,
-                    success: function (response) {
-                        $('#loadingSpinner1').hide();
-                        if (!response.success) {
-                            toastr.warning('Failed: ' + (response.message || 'Unknown error'));
-                            return;
-                        }
-
-        console.log(response);
-
-                        let container = $("#leaveContainer");
-                        const companies = response.data.result;
-
-                        $.each(companies, function (companyCode, companyData) {
-                            container.append(`<h2 style="color:#333;text-align:center;margin-top:50px;border-bottom:2px solid #007bff;padding-bottom:5px;">Company: ${companyCode}</h2>`);
-
-                            $.each(companyData.departmentData, function (departmentName, departmentInfo) {
-                                let tableId = `table_${companyCode.replace(/[^a-zA-Z0-9]/g,'_')}_${departmentName.replace(/[^a-zA-Z0-9]/g,'_')}`;
-
-                                container.append(`
-                                    <div class="mt-4">
-                                        <h4 style="color:#555;">Department: ${departmentInfo.departmentName}</h4>
-                                        <div class="table-responsive mt-3">
-                                            <table id="${tableId}" class="table table-striped table-bordered" width="100%">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Employee ID</th><th>Employee Name</th>
-                                                        <th>Designation</th><th>Leave ID</th>
-                                                        <th>Leave Format</th><th>Approval Status</th>
-                                                        <th>Leave Type</th><th>From Date</th>
-                                                        <th>To Date</th><th>Date(s)</th>
-                                                        <th>No. of Days</th><th>Reason</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ${departmentInfo.leaveDetails.map(leave => `
-                                                        <tr>
-                                                            <td>${leave.employeeId}</td>
-                                                            <td>${leave.employeeFirstName}</td>
-                                                            <td>${leave.designationName}</td>
-                                                            <td>${leave.leaveAppEntryId}</td>
-                                                            <td>${leave.applyLeaveFormat}</td>
-                                                            <td>${leave.hrApprovalStatus}</td>
-                                                            <td>${leave.leaveTypeId}</td>
-                                                            <td>${new Date(leave.startDate).toLocaleDateString('en-GB')}</td>
-                                                            <td>${new Date(leave.endDate).toLocaleDateString('en-GB')}</td>
-                                                            <td>${leave.daysStr ? leave.daysStr.map(d => `<span>${d}</span><br/>`).join('') : 'N/A'}</td>
-                                                            <td>${leave.noOfDay}</td>
-                                                            <td>${leave.reason}</td>
-                                                        </tr>
-                                                    `).join('')}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                        <div class="d-flex" style="padding-right: 0px; ">
+                            <hr class="m-0 p-0 w-100">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-11 mx-auto">
+                        <div class="row pb-4 dropdown-wrapper ">
+                            <div class="col-12 col-md-6 py-1">
+                                <div class="row align-items-center">
+                                    <label class="col-3 text-right mb-0" style="padding-right: 0px;">Company</label>
+                                    <div class="col-9 col-md-7" style="padding-left: 5px;">
+                                        <select id="companySelect" name="company" class="form-control form-control-sm gc-multiselect-load-data" multiple="multiple">
+                                            <option value="001">Data Path</option>
+                                        </select>
                                     </div>
-                                `);
+                                    <div class="col-md-2 col-0"></div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 py-1">
+                                <div class="row align-items-center">
+                                    <label class="col-3 text-right mb-0" style="padding-right: 0px;">Branch</label>
+                                    <div class="col-9 col-md-7 dropdown-wrapper" style="padding-left: 5px;">
+                                        <select id="branchSelect" name="branch" class="form-control form-control-sm gc-multiselect-load-data" multiple="multiple" data-placeholder="Select Branch">
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 col-0"></div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 py-1">
+                                <div class="row align-items-center">
+                                    <label class="col-3 text-right mb-0" style="padding-right: 0px;">Department</label>
+                                    <div class="col-9 col-md-7" style="padding-left: 5px;">
+                                        <select id="departmentSelect" name="department" class="form-control form-control-sm gc-multiselect-load-data" multiple="multiple" data-placeholder="Select Department">
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 col-0"></div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 py-1">
+                                <div class="row align-items-center">
+                                    <label class="col-3 text-right mb-0" style="padding-right: 0px;">Employee</label>
+                                    <div class="col-9 col-md-7" style="padding-left: 5px;">
+                                        <select id="employeeSelect" name="employee" class="form-control form-control-sm gc-multiselect-load-data" multiple="multiple" data-placeholder="Select Employee">
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 col-0"></div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 py-1">
+                                <div class="row align-items-center">
+                                    <label class="col-3 text-right mb-0" style="padding-right: 0px;">Apply Leave Format</label>
+                                    <div class="col-9 col-md-7" style="padding-left: 5px;">
+                                        <select id="leaveFormatDropdown" multiple="multiple" name="leaveFormat" class="form-control form-control-sm gc-multiselect-load-data" data-placeholder="Select Leave Format">
+                                            <option value="FullLeave">Full Leave</option>
+                                            <option value="halfDayLeave">Half Day Leave</option>
+                                            <option value="ShortLeave">Short Leave</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 d-none d-md-block"></div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 py-1">
+                                <div class="row align-items-center">
+                                    <label class="col-3 text-right mb-0" style="padding-right: 0px;">Leave Status</label>
+                                    <div class="col-9 col-md-7" style="padding-left: 5px;">
+                                        <select id="leaveStatusDropdown" multiple="multiple" name="leaveStatus" class="form-control form-control-sm gc-multiselect-load-data" data-placeholder="Select Leave Status">
+                                            <option value="pending">Pending</option>
+                                            <option value="Approved">Approved</option>
+                                            <option value="Canceled">Cancelled</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 col-0"></div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 py-1">
+                                <div class="row align-items-center">
+                                    <label class="col-3 text-right mb-0" style="padding-right: 0px;">Date From</label>
+                                    <div class="col-9 col-md-7" style="padding-left: 5px;">
+                                        <input type="text" id="dateFromStr" name="dateFromStr" class="form-control form-control-sm flatDate" placeholder="--Date From--" />
+                                    </div>
+                                    <div class="col-md-2 col-0"></div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 py-1">
+                                <div class="row align-items-center">
+                                    <label class="col-3 text-right mb-0" style="padding-right: 0px;">To</label>
+                                    <div class="col-9 col-md-7" style="padding-left: 5px;">
+                                        <input type="text" id="dateToStr" name="dateToStr" class="form-control form-control-sm flatDate" placeholder="--To--" />
+                                    </div>
+                                    <div class="col-md-2 col-0"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                                setTimeout(function () {
-                                    $(`#${tableId}`).DataTable({
-                                        destroy: true,
-                                        paging: true,
-                                        searching: true,
-                                        ordering: true,
-                                        autoWidth: false,
-                                        responsive: true,
-                                        pageLength: 10,
-                                        lengthMenu: [10, 25, 50, 100]
-                                    });
-                                }, 200);
-                            });
-                        });
-                    },
-                    error: function (xhr, status, error) {
-                        $('#loadingSpinner1').hide();
-                        toastr.warning('Failed to generate preview');
-                        console.error('AJAX error:', error);
-                    }
-                });
-            }
-        });</script>
+                    <div class="col-12 col-md-5" style="padding-right: 0px;">
+                        <h6 class="pt-3 px-3 pb-0 font-weight-bold fs-6 mb-0">Report Option:</h6>
 
+                        <div class="d-flex" style="padding-right: 0px; ">
+                            <hr class="m-0 p-0 w-100">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-11 mx-auto">
+                        <div class="row pb-4 dropdown-wrapper ">
+                            <div class="col-12 col-md-6 py-1">
+                                <div class="row align-items-center">
+                                    <label class="col-3 text-right mb-0 export-text px-0" style="padding-right: 0px;">Export Report Format</label>
+                                    <div class="col-9 col-md-7" style="padding-left: 5px;">
+                                        <select id="reportFormatDropdown" name="reportFormat" class="form-control form-control-sm">
+                                            <option value="pdf" selected>Pdf</option>
+                                            <option value="excel">Excel</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 col-0"></div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 py-1">
+                                <div class="row justify-content-end align-items-center right-btn-margin">
+                                    <div class="col-9 col-md-7" style="padding-left: 5px;">
+                                        <div class="row justify-content-end align-items-center">
+                                            <div class="px-1 d-grid">
+                                                <button type="button" id="exportButtonNew" class="btn btn-sm common-btn btn-outline-secondary">
+                                                    <i class="fas fa-file-export fa-export"></i> <span>Export Report</span>
+                                                </button>
+                                            </div>
+                                            <div class="px-1 d-grid">
+                                                <button type="button" id="previewBtn2" class="btn btn-sm btn-outline-secondary common-btn px-4">
+                                                    <i class="fas fa-eye preview-icon" title="Preview"></i> <span>Preview</span>
+                                                </button>
+                                            </div>
+                                            <div class="col-md-4"></div>
+                                        </div>
+                                    </div>                                       
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        @* <!-- PDF Preview Section with iframe --> *@
+        <div class="container-fluid">
+            <div id="pdfPreviewContainer" style="width: 100%; height: 100vh; border: 1px solid #ccc; display: none; margin-top: 20px; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); background: #fff; padding: 5px;">
+                <iframe id="pdfPreview" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div id="leaveContainer"></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div id="loadingSpinner1" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.3); text-align: center;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+        <p style="margin-top: 10px; margin-bottom: 0;">Loading data...</p>
+    </div>
+</div>
+
+<!-- Flatpickr CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<!-- Optional: Theme -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_white.css">
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+
+    <!-- Load the js -->
     <script src="~/js/pages/LeaveReport.js"></script>
 }

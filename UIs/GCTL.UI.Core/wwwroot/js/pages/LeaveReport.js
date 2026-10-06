@@ -1,58 +1,132 @@
-$(document).ready(function () {
+$(document).ready(async function () {
 
-   
+    // ─── REGISTER REMOTE MULTISELECTS (Scroll paging & remote search) ───────
+    bindRemoteMultiselect("#companySelect", "/GcAccessFilter/companies", "Select Company", "company");
+    bindRemoteMultiselect("#branchSelect", "/GcAccessFilter/branches", "Select Branch", "branch");
+    bindRemoteMultiselect("#departmentSelect", "/GcAccessFilter/departments", "Select Department", "department");
+    bindRemoteMultiselect("#employeeSelect", "/GcAccessFilter/employees", "Select Employee", null);
 
-    $('#js-leveSummery-report-clear').on('click', function () {
-       
+    var accessCode = $("#hdnAccessCode").val();
+    var isReadonly = accessCode === "0005";
 
-        // সব dropdown reset করো
-        
-        $('#departmentDropdown').val([]).selectpicker('refresh');
-        $('#leaveFormatDropdown').val([]).selectpicker('refresh');
-        $('#branchDropdown').val([]).selectpicker('refresh');
-        $('#employeeDropdown').val([]).selectpicker('refresh');
-        $('#leaveStatusDropdown').val([]).selectpicker('refresh');
-        $('#reportFormatDropdown').val('');
-
-        // date input reset করো
-        $('#dateFromStr').val('');
-        $('#dateToStr').val('');
-
-        $('#dateFromStr').val(getCurrentDate());
-        $('#dateToStr').val(getCurrentDate());
+    // Initialize static multiselects with matching design & inline search
+    ms_InitializeMultiselects({
+        '#leaveFormatDropdown': 'Select Leave Format',
+        '#leaveStatusDropdown': 'Select Leave Status'
     });
 
+    if (isReadonly) {
+        ms_InitializeMultiselects(null, null, true);
+        await ms_ApplyAccessCodeToAll(accessCode);
+    } else {
+        ms_InitializeMultiselects();
+        ms_BindCascade();
+        ms_Reset("#companySelect");
+        await ms_LoadNext("#companySelect", "/GcAccessFilter/companies");
+        await ms_AutoSelectCompany("001");
+    }
 
+    // Client-side search for static dropdowns (leave format & leave status)
+    $(document).on('input', '.multiselect-inline-search', function () {
+        const $btn = $(this).closest('button.multiselect');
+        const $container = $btn.next('.multiselect-container');
+        const $select = $btn.parent().prev('select');
+        if ($select.length && (!filterUrlMap || !filterUrlMap.has('#' + $select.attr('id')))) {
+            const val = ($(this).val() || '').toLowerCase().trim();
+            $container.find('li:not(.multiselect-item)').each(function () {
+                const text = $(this).text().toLowerCase();
+                $(this).toggle(text.indexOf(val) > -1);
+            });
+        }
+    });
 
-    $('.js-leveSummery').on('click', function () {
-        // Export button click হলে downloadBtn‑কে trigger করো
+    $(document).on('hidden.bs.dropdown', '.btn-group', function () {
+        $(this).find('ul.multiselect-container li').show();
+    });
+
+    // ─── DATEPICKER ──────────────────────────────────────────────────────────
+    function getCurrentDate() {
+        var today = new Date();
+        return String(today.getDate()).padStart(2, '0') + '/'
+             + String(today.getMonth() + 1).padStart(2, '0') + '/'
+             + today.getFullYear();
+    }
+
+    function initDatePicker() {
+        if (typeof CalendarService !== 'undefined' && typeof flatpickr !== 'undefined') {
+            flatpickr($("#dateFromStr, #dateToStr"), CalendarService.createConfig({
+                defaultDate: new Date()
+            }));
+        } else if (typeof flatpickr !== 'undefined') {
+            flatpickr("#dateFromStr, #dateToStr", {
+                dateFormat: "d/m/Y",
+                defaultDate: new Date()
+            });
+        } else {
+            $('#dateFromStr, #dateToStr').val(getCurrentDate());
+        }
+    }
+
+    initDatePicker();
+
+    function toArr(val) {
+        if (!val) return [];
+        return Array.isArray(val) ? val : [val];
+    }
+
+    // ─── CLEAR / RESET ───────────────────────────────────────────────────────
+    $('#btnClear, #js-leveSummery-report-clear').on('click', async function () {
+        ['#branchSelect', '#departmentSelect', '#employeeSelect', '#leaveFormatDropdown', '#leaveStatusDropdown'].forEach(function (sel) {
+            try {
+                $(sel).multiselect('deselectAll', false);
+                $(sel).multiselect('updateButtonText');
+            } catch (e) { }
+        });
+
+        ms_Reset("#companySelect");
+        await ms_LoadNext("#companySelect", "/GcAccessFilter/companies");
+        await ms_AutoSelectCompany("001");
+
+        $('#reportFormatDropdown').val('pdf');
+        initDatePicker();
+
+        $('#pdfPreviewContainer').hide();
+        $('#pdfPreview').attr('src', '');
+        $('#leaveContainer').empty();
+    });
+
+    // ─── TOOLBAR BUTTONS ─────────────────────────────────────────────────────
+    $(document).on('click', '#downloadReport, .js-leveSummery', function (e) {
+        e.preventDefault();
         $('#exportButtonNew').trigger('click');
     });
 
+    $(document).on('click', '#btnPreviewPdf', function (e) {
+        e.preventDefault();
+        $('#previewBtn2').trigger('click');
+    });
 
     $('.js-HomeOfficeRequest-report-favorite').on('click', function () {
         toastr.success('Favorite button Coming soon!');
     });
-  
 
-    $('#previewBtn2').click(function (e) {
+    // ─── PREVIEW PDF ─────────────────────────────────────────────────────────
+    $('#previewBtn2').on('click', function (e) {
         e.preventDefault();
 
+        var companyVal = toArr($('#companySelect').val());
+        if (companyVal.length === 0) companyVal = ['001'];
+
         var formData = {
-            company: $('#companyDropdown').val(),
-            branch: $('#branchDropdown').val(),
-            department: $('#departmentDropdown').val(),
-            employee: $('#employeeDropdown').val(),
+            company: companyVal,
+            branch: toArr($('#branchSelect').val()),
+            department: toArr($('#departmentSelect').val()),
+            employee: toArr($('#employeeSelect').val()),
             dateFromStr: $('#dateFromStr').val(),
             dateToStr: $('#dateToStr').val(),
-            leaveFormat: $('#leaveFormatDropdown').val(),
-            leaveStatus: $('#leaveStatusDropdown').val()
+            leaveFormat: toArr($('#leaveFormatDropdown').val()),
+            leaveStatus: toArr($('#leaveStatusDropdown').val())
         };
-
-        if (!formData.company || formData.company.length === 0) {
-            toastr.warning('Please select a company.');
-            return;
-        }
 
         $('#loadingSpinner1').show();
         $('#pdfPreviewContainer').hide();
@@ -61,6 +135,7 @@ $(document).ready(function () {
             type: 'POST',
             url: '/LeaveReport/PreviewPdf',
             data: formData,
+            traditional: true,
             success: function (response) {
                 $('#loadingSpinner1').hide();
                 if (!response.success) {
@@ -73,208 +148,76 @@ $(document).ready(function () {
             },
             error: function (xhr) {
                 $('#loadingSpinner1').hide();
-                var msg = xhr.responseJSON?.message || 'An error occurred.';
+                var msg = xhr.responseJSON?.message || 'An error occurred while generating preview.';
                 toastr.warning(msg);
             }
         });
     });
 
-
-
-    // ─── INIT ────────────────────────────────────────────────────────────────
-
-    getCompany();
-    initializeSelectPicker('leaveFormatDropdown');
-    initializeSelectPicker('leaveStatusDropdown');
-
-    fetchDropdownData('/LeaveReport/GetBranchesMultiComp',        { companyCode: null, isAll: true }, 'branchDropdown',     'branchCode',     'branchName');
-    fetchDropdownData('/LeaveReport/GetDeptMultiCompBranch',      { companyCode: null, branchCode: null, isAll: true }, 'departmentDropdown', 'departmentCode', 'departmentName');
-    fetchDropdownData('/LeaveReport/GetEmpMultiCompBranchDept',   { companyCode: null, branchCode: null, departmentCode: null, isAll: true }, 'employeeDropdown', 'employeeId', 'employeeFirstName');
-
-    // ─── DATEPICKER ──────────────────────────────────────────────────────────
-
-    $(function () {
-        $("#dateFromStr, #dateToStr").datepicker({ dateFormat: "dd/mm/yy" });
-    });
-
-    function getCurrentDate() {
-        var today = new Date();
-        return String(today.getDate()).padStart(2, '0') + '/'
-             + String(today.getMonth() + 1).padStart(2, '0') + '/'
-             + today.getFullYear();
-    }
-
-    $('#dateFromStr').val(getCurrentDate());
-    $('#dateToStr').val(getCurrentDate());
-
-    // ─── DROPDOWN CASCADE ────────────────────────────────────────────────────
-
-    $('#companyDropdown').on('changed.bs.select', function () {
-        var selected = $(this).val();
-        var hasSelection = selected && selected.length > 0;
-
-        fetchDropdownData('/LeaveReport/GetBranchesMultiComp',
-            { companyCode: hasSelection ? selected : null, isAll: !hasSelection },
-            'branchDropdown', 'branchCode', 'branchName');
-
-        fetchDropdownData('/LeaveReport/GetDeptMultiCompBranch',
-            { companyCode: hasSelection ? selected : null, branchCode: null, isAll: !hasSelection },
-            'departmentDropdown', 'departmentCode', 'departmentName');
-
-        fetchDropdownData('/LeaveReport/GetEmpMultiCompBranchDept',
-            { companyCode: hasSelection ? selected : null, branchCode: null, departmentCode: null, isAll: !hasSelection },
-            'employeeDropdown', 'employeeId', 'employeeFirstName');
-    });
-
-    $('#branchDropdown').change(function () {
-        var compCode = $('#companyDropdown').val();
-        var selected = $(this).val();
-        var hasSelection = selected && selected.length > 0;
-
-        fetchDropdownData('/LeaveReport/GetDeptMultiCompBranch',
-            { companyCode: compCode, branchCode: hasSelection ? selected : null, isAll: !hasSelection },
-            'departmentDropdown', 'departmentCode', 'departmentName');
-
-        fetchDropdownData('/LeaveReport/GetEmpMultiCompBranchDept',
-            { companyCode: compCode, branchCode: hasSelection ? selected : null, departmentCode: null, isAll: !hasSelection },
-            'employeeDropdown', 'employeeId', 'employeeFirstName');
-    });
-
-    $('#departmentDropdown').change(function () {
-        var compCode    = $('#companyDropdown').val();
-        var branchCode  = $('#branchDropdown').val();
-        var selected    = $(this).val();
-        var hasSelection = selected && selected.length > 0;
-
-        fetchDropdownData('/LeaveReport/GetEmpMultiCompBranchDept',
-            { companyCode: compCode, branchCode: branchCode, departmentCode: hasSelection ? selected : null, isAll: !hasSelection },
-            'employeeDropdown', 'employeeId', 'employeeFirstName');
-    });
-
-    // ─── COMPANY LOAD ────────────────────────────────────────────────────────
-
-    function getCompany() {
-        $.ajax({
-            url: '/LeaveReport/GetCompanies',
-            type: 'GET',
-            success: function (response) {
-                var $dd = $('#companyDropdown').empty();
-                if (response.result && response.result.length > 0) {
-                    $.each(response.result, function (i, com) {
-                        $dd.append(`<option value="${com.companyCode}">${com.companyName}</option>`);
-                    });
-                }
-                initializeSelectPicker('companyDropdown');
-
-                if (response.firstData) {
-
-                    $('#companyDropdown').val(response.firstData).trigger('change')
-                }
-
-            },
-            error: function () {
-                console.error('Error fetching companies');
-                initializeSelectPicker('companyDropdown');
-            }
-        });
-    }
-
-    // ─── GENERIC DROPDOWN FETCH ──────────────────────────────────────────────
-
-    function fetchDropdownData(endpoint, params, dropdownId, valueField, textField) {
-        var $dd = $('#' + dropdownId);
-        $dd.empty().append('<option value="">Loading...</option>');
-        $dd.selectpicker('refresh');
-
-        $.ajax({
-            url: endpoint,
-            type: 'GET',
-            traditional: true,
-            data: params,
-            success: function (response) {
-                $dd.empty();
-                if (response.result && response.result.length > 0) {
-                    response.result.forEach(function (item) {
-                        $dd.append(`<option value="${item[valueField]}">${item[textField]} (${item[valueField]})</option>`);
-                    });
-                } else {
-                    $dd.append('<option value="">No data available</option>');
-                }
-                initializeSelectPicker(dropdownId);
-            },
-            error: function () {
-                $dd.empty().append('<option value="">Error loading data</option>');
-                initializeSelectPicker(dropdownId);
-            }
-        });
-    }
-
-    // ─── SELECTPICKER ────────────────────────────────────────────────────────
-
-    function initializeSelectPicker(elementId) {
-        var $el = $('#' + elementId);
-        if ($el.data('selectpicker')) $el.selectpicker('destroy');
-        $el.selectpicker({
-            liveSearch: true,
-            liveSearchPlaceholder: 'Search...',
-            size: 10,
-            selectedTextFormat: 'count',
-            actionsBox: true,
-            iconBase: 'fa',
-            showTick: true,
-            tickIcon: 'fa-check',
-            container: 'body'
-        });
-        $el.selectpicker('refresh');
-    }
-
-    // ─── EXPORT ──────────────────────────────────────────────────────────────
-
-    $('#exportButtonNew').click(function (e) {
+    // ─── EXPORT REPORT ───────────────────────────────────────────────────────
+    $('#exportButtonNew').on('click', function (e) {
         e.preventDefault();
 
+        var selectedFormat = $('#reportFormatDropdown').val() || 'pdf';
+        if (selectedFormat === 'downloadPdf') selectedFormat = 'pdf';
+        if (selectedFormat === 'downloadExcel') selectedFormat = 'excel';
+
+        var companyVal = toArr($('#companySelect').val());
+        if (companyVal.length === 0) companyVal = ['001'];
+
         var formData = {
-            company:       $('#companyDropdown').val(),
-            branch:        $('#branchDropdown').val(),
-            department:    $('#departmentDropdown').val(),
-            employee:      $('#employeeDropdown').val(),
-            dateFromStr:   $('#dateFromStr').val(),
-            dateToStr:     $('#dateToStr').val(),
-            leaveFormat:   $('#leaveFormatDropdown').val(),
-            leaveStatus:   $('#leaveStatusDropdown').val(),
-            reportFormat:  $('#reportFormatDropdown').val()
+            company: companyVal,
+            branch: toArr($('#branchSelect').val()),
+            department: toArr($('#departmentSelect').val()),
+            employee: toArr($('#employeeSelect').val()),
+            dateFromStr: $('#dateFromStr').val(),
+            dateToStr: $('#dateToStr').val(),
+            leaveFormat: toArr($('#leaveFormatDropdown').val()),
+            leaveStatus: toArr($('#leaveStatusDropdown').val()),
+            reportFormat: selectedFormat
         };
 
-        if (!formData.company || !formData.reportFormat) {
-            toastr.warning('Please select both Company and Report Format.');
-            return;
-        }
-
         toastr.info('Generating report...', 'Please wait', { timeOut: 3000, closeButton: true });
+        $('#loadingSpinner1').show();
 
         $.ajax({
             type: 'POST',
-            url: '/LeaveReport/DownloadReportN',  // <-- updated
+            url: '/LeaveReport/DownloadReportN',
             data: formData,
+            traditional: true,
             xhrFields: { responseType: 'blob' },
             success: function (blob, status, xhr) {
-                
-                var contentType        = xhr.getResponseHeader('Content-Type');
-                var contentDisposition = xhr.getResponseHeader('Content-Disposition');
+                $('#loadingSpinner1').hide();
+
+                var contentType = xhr.getResponseHeader('Content-Type') || '';
+                var contentDisposition = xhr.getResponseHeader('Content-Disposition') || '';
                 var filename = 'LeaveReport';
 
+                if (contentType.includes('application/json')) {
+                    var reader = new FileReader();
+                    reader.onload = function () {
+                        try {
+                            var res = JSON.parse(reader.result);
+                            toastr.warning(res.message || 'Could not generate report.');
+                        } catch (ex) {
+                            toastr.warning('Failed to generate report.');
+                        }
+                    };
+                    reader.readAsText(blob);
+                    return;
+                }
+
                 if (contentDisposition) {
-                    var matches = contentDisposition.match(/filename="?([^"]+)"?/);
+                    var matches = contentDisposition.match(/filename="?([^";]+)"?/);
                     if (matches && matches[1]) filename = matches[1];
                 }
 
                 if (contentType.includes('application/pdf')) {
-                    filename += '.pdf';
-                } else if (contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
-                    filename += '.xlsx';
+                    if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
+                } else if (contentType.includes('spreadsheetml') || contentType.includes('excel')) {
+                    if (!filename.toLowerCase().endsWith('.xlsx')) filename += '.xlsx';
                 } else {
-                    toastr.error('Unsupported file format received.');
-                    return;
+                    if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
                 }
 
                 var blobUrl = window.URL.createObjectURL(blob);
@@ -284,13 +227,13 @@ $(document).ready(function () {
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                window.URL.revokeObjectURL(blobUrl);
+                setTimeout(function () { window.URL.revokeObjectURL(blobUrl); }, 1000);
 
                 toastr.success('Report downloaded successfully!');
             },
-            error: function (res) {
-               
-                toastr.warning('"Error occurs"');
+            error: function () {
+                $('#loadingSpinner1').hide();
+                toastr.error('Error generating report.');
             }
         });
     });

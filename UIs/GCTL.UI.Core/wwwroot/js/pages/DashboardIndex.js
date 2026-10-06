@@ -428,6 +428,17 @@
         // ── Leave Types Fixed Display Sequence ─────────────────
         var LEAVE_SEQUENCE = ['CL', 'SL', 'UL', 'ML', 'PL', 'MARL', 'HL', 'UMRL'];
 
+        var DEFAULT_LEAVE_TYPES = [
+            { leaveTypeCode: 'CL', shortName: 'CL' },
+            { leaveTypeCode: 'SL', shortName: 'SL' },
+            { leaveTypeCode: 'UL', shortName: 'UL' },
+            { leaveTypeCode: 'ML', shortName: 'ML' },
+            { leaveTypeCode: 'PL', shortName: 'PL' },
+            { leaveTypeCode: 'MARL', shortName: 'MARL' },
+            { leaveTypeCode: 'HL', shortName: 'HL' },
+            { leaveTypeCode: 'UMRL', shortName: 'UMRL' }
+        ];
+
         function sortLeaveTypesBySequence(types) {
             if (!types || !Array.isArray(types)) return [];
             return types.slice().sort(function (a, b) {
@@ -444,9 +455,14 @@
 
         // ── Build dynamic columns ──────────────────────────────
         function buildLeaveColumns(leaveTypes) {
+            if (!leaveTypes || !Array.isArray(leaveTypes) || leaveTypes.length === 0) {
+                leaveTypes = DEFAULT_LEAVE_TYPES;
+            }
             leaveTypes = sortLeaveTypesBySequence(leaveTypes);
             if (leaveTable && $.fn.DataTable.isDataTable("#leaveSummaryTable")) {
-                leaveTable.destroy();
+                try {
+                    leaveTable.destroy();
+                } catch (e) { }
                 leaveTable = null;
             }
 
@@ -465,7 +481,7 @@
             var r2 = '<tr style="font-size:11px;">';
             ['head-granted', 'head-availed', 'head-balanced'].forEach(function (cls) {
                 leaveTypes.forEach(function (lt) {
-                    r2 += '<th class="' + cls + '">' + lt.shortName + '</th>';
+                    r2 += '<th class="' + cls + '">' + (lt.shortName || lt.leaveTypeCode || '') + '</th>';
                 });
             });
             r2 += '</tr>';
@@ -570,6 +586,18 @@
 
         // ── Leave DataTable init ──────────────────────────────
         function initLeaveTable(leaveTypes) {
+            if (!leaveTypes || !Array.isArray(leaveTypes) || leaveTypes.length === 0) {
+                leaveTypes = DEFAULT_LEAVE_TYPES;
+            }
+            _leaveTypes = leaveTypes;
+
+            if ($.fn.DataTable.isDataTable("#leaveSummaryTable")) {
+                try {
+                    $("#leaveSummaryTable").DataTable().destroy();
+                } catch (e) { }
+                leaveTable = null;
+            }
+
             var cols = buildLeaveColumns(leaveTypes);
 
             leaveTable = $("#leaveSummaryTable").DataTable({
@@ -602,9 +630,14 @@
                         return d;
                     },
                     dataSrc: function (json) {
-                        renderLeaveSummary(json.summary);
+                        if (json && json.summary) {
+                            renderLeaveSummary(json.summary);
+                        }
 
                         var newTypes = sortLeaveTypesBySequence(json.leaveTypes || []);
+                        if (!newTypes || newTypes.length === 0) {
+                            newTypes = DEFAULT_LEAVE_TYPES;
+                        }
                         if (JSON.stringify(newTypes) !== JSON.stringify(_leaveTypes)) {
                             _leaveTypes = newTypes;
                             setTimeout(function () {
@@ -794,13 +827,19 @@
                     "search[value]": ""
                 }),
                 success: function (res) {
-                    renderLeaveSummary(res.summary);
-                    _leaveTypes = sortLeaveTypesBySequence(res.leaveTypes || []);
+                    if (res && res.summary) {
+                        renderLeaveSummary(res.summary);
+                    }
+                    _leaveTypes = sortLeaveTypesBySequence((res && res.leaveTypes) || []);
+                    if (!_leaveTypes || _leaveTypes.length === 0) {
+                        _leaveTypes = DEFAULT_LEAVE_TYPES;
+                    }
                     initLeaveTable(_leaveTypes);
                 },
                 error: function (xhr, err) {
                     console.error("Leave init error:", err);
-                    initLeaveTable([]);
+                    _leaveTypes = DEFAULT_LEAVE_TYPES;
+                    initLeaveTable(_leaveTypes);
                 }
             });
         });
