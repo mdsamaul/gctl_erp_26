@@ -30,7 +30,6 @@ using GCTL.Service.Country;
 using GCTL.Service.CourseTitle;
 using GCTL.Service.Currencies;
 using GCTL.Service.DailyAttendanceDetailsReport;
-using GCTL.Service.JobCardReport;
 using GCTL.Service.DailyAttendanceSummaryReportService;
 using GCTL.Service.DashboardAttendance;
 using GCTL.Service.DeleteHistories;
@@ -96,6 +95,9 @@ using GCTL.Service.HrmEmployeeSalaryInfoReport;
 using GCTL.Service.HrmLeaveApplicationEntrys;
 using GCTL.Service.HrmLeaveSummaryReports;
 using GCTL.Service.HRMPayrollLoan;
+using GCTL.Service.HrmPaySlipReports;
+using GCTL.Service.HrmSalaryCertificateReports;
+using GCTL.Service.HrmSalarySheetReports;
 using GCTL.Service.HRMTransportAssignEntryService;
 using GCTL.Service.HRMTransportExpenseEntryService;
 using GCTL.Service.HWDateSet;
@@ -104,6 +106,7 @@ using GCTL.Service.InvDefSupplierTypes;
 using GCTL.Service.ItemMasterInformation;
 using GCTL.Service.ItemModelService;
 using GCTL.Service.ItemType;
+using GCTL.Service.JobCardReport;
 using GCTL.Service.JobTitles;
 using GCTL.Service.LeaveAppDay;
 using GCTL.Service.LeaveReport;
@@ -274,6 +277,8 @@ namespace GCTL.UI.Core.Extensions
             services.AddScoped<IGcAccessFilterService, GcAccessFilterService>();
             services.AddScoped<IHRLettersReportService, HRLettersReportService>();
             services.AddScoped<IDailyAttendanceSummaryReportService, DailyAttendanceSummaryReportService>();
+            services.AddScoped<IHrmPaySlipReportService, HrmPaySlipReportService>();
+            services.AddScoped<IHrmSalarySheetReportService, HrmSalarySheetReportService>();
 
 
             services.AddScoped<IProductIssueEntryService, ProductIssueEntryService>();
@@ -286,6 +291,7 @@ namespace GCTL.UI.Core.Extensions
             services.AddScoped<IHRMTransportExpenseEntryServicec, HRMTransportExpenseEntryServicec>();
             services.AddScoped<ITransportExpenseStatementReportServices, TransportExpenseStatementReportServices>();
             services.AddScoped<IMonthlyTransportExpenseDetailsReportService, MonthlyTransportExpenseDetailsReportServices>();
+            services.AddScoped<IHrmSalaryCertificateReportService, HrmSalaryCertificateReportService>();
 
             //services.AddScoped<ITaxChallanEntryService, TaxChallanEntryServices>();
             //services.AddScoped<ISALES_Def_Inv_MainItemGroup, SALES_Def_Inv_MainItemGroup>();

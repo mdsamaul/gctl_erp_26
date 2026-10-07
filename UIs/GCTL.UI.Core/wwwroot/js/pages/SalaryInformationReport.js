@@ -1,4 +1,4 @@
-﻿(function ($) {
+(function ($) {
     $.salaryInformationReport = function (options) {
         var settings = $.extend({
             baseUrl: '',
@@ -2484,11 +2484,51 @@
             else if (masterVal === "08") previewPdfTerminated(filter);
         });
 
+        function setDateInputsDisabled(disabled) {
+            $('#dateFrom, #dateTo').prop('disabled', disabled);
+            $('#dateFrom, #dateTo').each(function () {
+                if (this._flatpickr) {
+                    if (this._flatpickr.altInput) {
+                        $(this._flatpickr.altInput).prop('disabled', disabled).css('pointer-events', disabled ? 'none' : '');
+                    }
+                    if (this._flatpickr._input) {
+                        $(this._flatpickr._input).prop('disabled', disabled);
+                    }
+                }
+            });
+            $('#dateFrom, #dateTo').closest('.col-9, .col-md-7').find('input').prop('disabled', disabled).css('pointer-events', disabled ? 'none' : '');
+        }
+
         function toggleGenerateSections() {
             var mode = $('input[name="salaryGenerate"]:checked').val();
             var isByDate = mode === 'ByDate';
-            $('#dateFrom, #dateTo').closest('.col-12').toggle(isByDate);
-            $('#monthSelect, #yearSelect').closest('.col-12').toggle(!isByDate);
+
+            // Always keep Date, Month, and Year fields visible
+            $('#dateFrom, #dateTo, #monthSelect, #yearSelect').closest('.col-12').show();
+
+            setDateInputsDisabled(!isByDate);
+            $('#monthSelect, #yearSelect').prop('disabled', isByDate);
+
+            if ($.fn.select2 && $('#monthSelect').data('select2')) {
+                $('#monthSelect').prop('disabled', isByDate).trigger('change.select2');
+            }
+
+            var now = new Date();
+            var currentMonth = now.getMonth() + 1;
+            var currentYear = now.getFullYear();
+
+            if (!$('#monthSelect').val()) {
+                $('#monthSelect').val(currentMonth);
+                if (!$('#monthSelect').val()) {
+                    $('#monthSelect').val(String(currentMonth).padStart(2, '0'));
+                }
+                if ($.fn.select2 && $('#monthSelect').data('select2')) {
+                    $('#monthSelect').trigger('change');
+                }
+            }
+            if (!$('#yearSelect').val()) {
+                $('#yearSelect').val(currentYear);
+            }
         }
 
         $('input[name="salaryGenerate"]').on('change', toggleGenerateSections);

@@ -58,42 +58,61 @@
             $("#customLoadingOverlay").hide();
         }
 
-        $(document).ready(function () {
+        function setDateInputsDisabled(disabled) {
+            $('#FromDateSelect, #ToDateSelect').prop('disabled', disabled);
+            $('#FromDateSelect, #ToDateSelect').each(function () {
+                if (this._flatpickr) {
+                    if (this._flatpickr.altInput) {
+                        $(this._flatpickr.altInput).prop('disabled', disabled).css('pointer-events', disabled ? 'none' : '');
+                    }
+                    if (this._flatpickr._input) {
+                        $(this._flatpickr._input).prop('disabled', disabled);
+                    }
+                }
+            });
+            $('#FromDateSelect, #ToDateSelect').closest('.col-9, .col-md-7').find('input').prop('disabled', disabled).css('pointer-events', disabled ? 'none' : '');
+        }
 
-            function toggleDurationFields() {
+        function toggleDurationFields() {
+            var now = new Date();
+            var monthNumber = now.getMonth() + 1;
+            var year = now.getFullYear();
 
-                if ($("#Date").is(":checked")) {
-                    // Show Date fields
-                    $("#FromDateSelect").closest(".col-12").show();
-                    $("#ToDateSelect").closest(".col-12").show();
+            // Always keep Date, Month, and Year fields visible
+            $("#FromDateSelect, #ToDateSelect, #MonthIds, #YearTo").closest(".col-12").show();
 
-                    // Hide Year fields + reset values
-                    $("#MonthIds").closest(".col-12").hide();
-                    $("#YearTo").closest(".col-12").hide();
-                    $("#MonthIds").val("");
-                    $("#YearTo").val("");
-                } else if ($("#Year").is(":checked")) {
-                    // Show Year fields
-                    $("#MonthIds").closest(".col-12").show();
-                    $("#YearTo").closest(".col-12").show();
-
-                    // Hide Date fields + reset values
-                    $("#FromDateSelect").closest(".col-12").hide();
-                    $("#ToDateSelect").closest(".col-12").hide();
-                    $("#FromDateSelect").val("");
-                    $("#ToDateSelect").val("");
-
-                    var now = new Date();
-
-                    var monthNumber = now.getMonth() + 1;
-                    var year = now.getFullYear();
-
-
-                    $("#MonthIds").val(monthNumber);
-                    $("#YearTo").val(year);
+            if (!$("#MonthIds").val() || $("#MonthIds").val() === "") {
+                $("#MonthIds").val(monthNumber);
+                if (!$("#MonthIds").val()) {
+                    $("#MonthIds").val(String(monthNumber).padStart(2, '0'));
                 }
             }
+            if (!$("#YearTo").val()) {
+                $("#YearTo").val(year);
+            }
 
+            if ($("#Date").is(":checked")) {
+                setDateInputsDisabled(false);
+                $("#MonthIds, #YearTo").prop('disabled', true);
+
+                if ($("#MonthIds").data("multiselect") || $("#MonthIds").hasClass("multiselect")) {
+                    $("#MonthIds").multiselect('disable');
+                } else if ($.fn.select2 && $("#MonthIds").data("select2")) {
+                    $("#MonthIds").prop('disabled', true).trigger('change.select2');
+                }
+            } else if ($("#Year").is(":checked")) {
+                setDateInputsDisabled(true);
+                $("#MonthIds, #YearTo").prop('disabled', false);
+
+                if ($("#MonthIds").data("multiselect") || $("#MonthIds").hasClass("multiselect")) {
+                    $("#MonthIds").multiselect('enable');
+                } else if ($.fn.select2 && $("#MonthIds").data("select2")) {
+                    $("#MonthIds").prop('disabled', false).trigger('change.select2');
+                }
+            }
+        }
+
+        $(document).ready(function () {
             // Initial call
             toggleDurationFields();
 
@@ -721,6 +740,7 @@
 
         var init = function () {
             GetFlatDate();
+            toggleDurationFields();
             settings.load();
             setupLoadingOverlay();
         };

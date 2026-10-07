@@ -1,4 +1,4 @@
-﻿(function ($) {
+(function ($) {
     $.MonthWiseOrderBookingReportJs = function (options) {
         var settings = $.extend({
             baseUrl: "/",
@@ -97,25 +97,35 @@
         $(document).ready(function () {
             initializeFlatDates();
 
+            function setDateInputsDisabled(disabled) {
+                $('#FromDateSelect, #ToDateSelect').prop('disabled', disabled);
+                $('#FromDateSelect, #ToDateSelect').each(function () {
+                    if (this._flatpickr) {
+                        if (this._flatpickr.altInput) {
+                            $(this._flatpickr.altInput).prop('disabled', disabled).css('pointer-events', disabled ? 'none' : '');
+                        }
+                        if (this._flatpickr._input) {
+                            $(this._flatpickr._input).prop('disabled', disabled);
+                        }
+                    }
+                });
+                $('#FromDateSelect, #ToDateSelect').closest('.col-9, .col-md-7').find('input').prop('disabled', disabled).css('pointer-events', disabled ? 'none' : '');
+            }
+
             // Toggle Date/Year inputs based on radio selection
             function toggleInputs() {
-                if ($('#Date').is(':checked')) {
-                    $('#FromDateSelect, #ToDateSelect')
-                        .prop('disabled', false)
-                        .closest('.col-12').show();
+                var isDate = $('#Date').is(':checked');
 
-                    $('#YearFrom, #YearTo')
-                        .prop('disabled', true)
-                        .closest('.col-12').hide();
-                } else if ($('#Year').is(':checked')) {
-                    $('#FromDateSelect, #ToDateSelect')
-                        .prop('disabled', true)
-                        .closest('.col-12').hide();
+                // Keep both Date and Year fields visible
+                $('#FromDateSelect, #ToDateSelect, #YearFrom, #YearTo').closest('.col-12').show();
 
-                    $('#YearFrom, #YearTo')
-                        .prop('disabled', false)
-                        .closest('.col-12').show();
-                }
+                setDateInputsDisabled(!isDate);
+                $('#YearFrom, #YearTo').prop('disabled', isDate);
+
+                var now = new Date();
+                var currentYear = now.getFullYear();
+                if (!$('#YearFrom').val()) $('#YearFrom').val(currentYear);
+                if (!$('#YearTo').val()) $('#YearTo').val(currentYear);
             }
 
             toggleInputs();
