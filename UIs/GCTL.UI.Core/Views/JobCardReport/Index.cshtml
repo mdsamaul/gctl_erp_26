@@ -7,32 +7,35 @@
 <style>
     .headerToobar {
         background: linear-gradient(to right, #fff, #fff);
+        /* background: linear-gradient(to right, rgba(34, 211, 238, .1), #fff); */
         box-shadow: 3px 0 6px rgba(0,0,0,0.2);
         border-radius: 0px 11px 11px 0px;
     }
 
     #btnPreviewPdf, #downloadReport {
-        transition: background-color .3s, color .3s, border-color .3s;
+        transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
         min-width: 120px;
+        min-height: 25px;
     }
 
         #btnPreviewPdf:hover, #downloadReport:hover {
-            background-color: rgba(173,255,47,.2) !important;
+            background-color: rgba(173, 255, 47, 0.2) !important;
             color: #1e90ff !important;
             border-color: #1e90ff !important;
-            box-shadow: 0 4px 10px rgba(30,144,255,.5) !important;
+            box-shadow: 0 4px 10px rgba(30,144,255,0.5) !important;
         }
-
-            #btnPreviewPdf:hover i, #downloadReport:hover i {
-                transform: scale(1.3);
-            }
 
         #btnPreviewPdf i, #btnPreviewPdf span,
         #downloadReport i, #downloadReport span {
-            transition: transform .3s;
+            transition: transform 0.3s ease;
             display: inline-block;
         }
 
+        #btnPreviewPdf:hover i, #downloadReport:hover i {
+            transform: scale(1.3);
+        }
+
+    /* multiselect */
     .dropdown-wrapper .btn-group {
         width: 100% !important;
         display: block !important;
@@ -42,7 +45,7 @@
         width: 100% !important;
         border: 1px solid #ced4da !important;
         border-radius: 4px !important;
-        background: #fff !important;
+        background-color: #fff !important;
         padding: 6px 8px !important;
         font-size: 13px !important;
         display: flex !important;
@@ -53,7 +56,7 @@
 
     .multiselect-container.dropdown-menu {
         border-radius: 4px !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,.15);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         font-size: 13px;
         margin-top: 1px !important;
         max-height: 250px !important;
@@ -62,6 +65,7 @@
     }
 
     @@media (min-width: 1200px) and (max-width: 1400px) {
+
         .dropdown-wrapper .multiselect {
             padding: 3px 6px !important;
             font-size: 12px !important;
@@ -87,6 +91,12 @@
             padding-left: 4px !important;
         }
 
+        .row.align-items-center > .col-md-2,
+        .row.align-items-center > .col-md-1 {
+            flex: 0 0 10%;
+            max-width: 10%;
+        }
+
         .form-control.form-control-sm {
             font-size: 12px;
             padding: 3px 6px;
@@ -100,7 +110,8 @@
             padding: 2px 6px;
         }
 
-        h6.pt-3.px-3.pb-0 {
+        h6.pt-3.px-3.pb-0,
+        h6.pt-2.px-3.pb-0 {
             font-size: 14px;
             padding-top: 8px !important;
         }
@@ -110,13 +121,13 @@
         }
 
         .right-btn-margin {
-            margin-right: -6px !important;
+            margin-right: -27px !important;
         }
     }
 
     @@media (min-width: 1401px) {
         .right-btn-margin {
-            margin-right: 25px !important;
+            margin-right: 0px !important;
         }
     }
 </style>
@@ -130,16 +141,17 @@
     <div class="card border">
 
         <!-- Toolbar -->
-        <div class="card-header py-1">
+        <div class="card-header">
             <partial name="_Toolbars"
                      model="new ToobarModel() { Title = Model.Breadcrumb, Code = Model.Code, Name = Model.Setup.CompanyCode }" />
         </div>
 
         <!-- Filter Panel -->
-        <div class="card-body border p-0">
+        <div class="card-body border">
             <div>
+
                 <div class="col-12 col-md-5">
-                    <h6 class="pt-3 px-3 pb-0 font-weight-bold fs-6 mb-0">Search By:</h6>
+                    <h6 class="pt-3 px-3 pb-0 font-weight-bold fs-6 mb-0">Search By :</h6>
                     <div class="d-flex"><hr class="m-0 p-0 w-100"></div>
                 </div>
 
@@ -147,100 +159,113 @@
                     <div class="row pb-2">
 
                         <!-- Company -->
-                        <div class="col-12 col-md-12 py-1">
+                        <div class="col-12 col-md-6 py-1">
                             <div class="row align-items-center">
-                                <label class="col-12 col-md-2 text-md-right mb-0" style="padding-right:0;">Company</label>
-                                <div class="col-12 col-md-3" style="padding-left:5px;">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Company</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
                                     <select id="companySelect" class="form-control form-control-sm gc-multiselect-load-data" multiple></select>
                                 </div>
+                                <div class="col-md-2 col-0"></div>
                             </div>
                         </div>
 
                         <!-- Employee -->
-                        <div class="col-12 col-md-12 py-1">
+                        <div class="col-12 col-md-6 py-1">
                             <div class="row align-items-center">
-                                <label class="col-12 col-md-2 text-md-right mb-0" style="padding-right:0;">Employee</label>
-                                <div class="col-12 col-md-3" style="padding-left:5px;">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Employee</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
                                     <select id="employeeSelect" class="form-control form-control-sm gc-multiselect-load-data" multiple></select>
                                 </div>
+                                <div class="col-md-2 col-0"></div>
                             </div>
                         </div>
 
-                        <!-- Dates (From Date & To Date) -->
-                        <div class="col-12 col-md-12 py-1">
+                        <!-- From Date -->
+                        <div class="col-12 col-md-6 py-1">
                             <div class="row align-items-center">
-                                <label class="col-12 col-md-2 text-md-right mb-0" style="padding-right:0;">From Date</label>
-                                <div class="col-12 col-md-3" style="padding-left:5px;">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">From Date</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
                                     <input type="text" id="fromDateSelect"
                                            class="form-control form-control-sm"
                                            placeholder="dd/MM/yyyy" />
                                 </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
 
-                                <label class="col-12 col-md-1 text-md-right mb-0 px-0">To Date</label>
-                                <div class="col-12 col-md-3" style="padding-left:5px;">
+                        <!-- To Date -->
+                        <div class="col-12 col-md-6 py-1">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">To Date</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
                                     <input type="text" id="toDateSelect"
                                            class="form-control form-control-sm"
                                            placeholder="dd/MM/yyyy" />
                                 </div>
+                                <div class="col-md-2 col-0"></div>
                             </div>
                         </div>
 
                     </div>
                 </div>
-            </div>
 
-            <div class="col-12 col-md-5">
-                <h6 class="pt-3 px-3 pb-0 font-weight-bold fs-6 mb-0">Report Option:</h6>
-                <div class="d-flex"><hr class="m-0 p-0 w-100"></div>
-            </div>
+                <!-- Report Option -->
+                <div class="col-12 col-md-5">
+                    <h6 class="pt-2 px-3 pb-0 font-weight-bold fs-6 mb-0">Report Option:</h6>
+                    <div class="d-flex"><hr class="m-0 p-0 w-100"></div>
+                </div>
 
-            <div class="col-12 col-md-11 mx-auto dropdown-wrapper">
-                <div class="row pb-2">
-                    <!-- Export Report Format -->
-                    <div class="col-12 col-md-12 py-1">
-                        <div class="row align-items-center">
-                            <label class="col-12 col-md-2 text-md-right mb-0 export-text" style="padding-right:0;">Export Report Format</label>
-                            <div class="col-12 col-md-3" style="padding-left:5px;">
-                                <select id="reportFormatSelect" class="form-control form-control-sm">
-                                    @* <option value="">-- Select Export Report Format --</option> *@
-                                    <option value="downloadPdf">PDF</option>
-                                    <option value="downloadExcel">Excel</option>
-                                    <option value="downloadCsv">CSV</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
+                <div class="col-12 col-md-12 mx-auto">
+                    <div class="row pb-3">
+                        <div class="col-12 col-md-11 mx-auto dropdown-wrapper">
+                            <div class="row pb-2">
 
-                    <!-- Buttons -->
-                    <div class="col-12 col-md-9 py-2">
-                        <div class="row justify-content-end align-items-center px-0 mx-0 right-btn-margin">
-                            <div class="pr-2">
-                                <button id="downloadReport"
-                                        class="btn btn-sm common-btn btn-outline-secondary">
-                                    <i class="fas fa-print"></i>
-                                    <span>Report Export</span>
-                                </button>
-                            </div>
-                            <div class="pl-1">
-                                <button id="btnPreviewPdf"
-                                        class="btn btn-sm btn-outline-secondary common-btn px-4">
-                                    <i class="fas fa-print" title="Preview"></i>
-                                    <span>Preview</span>
-                                </button>
+                                <!-- Export Format -->
+                                <div class="col-12 col-md-6 py-1">
+                                    <div class="row align-items-center">
+                                        <label class="col-3 text-right mb-0 export-text px-0" style="padding-right:0;">Export Format</label>
+                                        <div class="col-9 col-md-7" style="padding-left:5px;">
+                                            <select id="reportFormatSelect" class="form-control form-control-sm">
+                                                <option value="downloadPdf">PDF</option>
+                                                <option value="downloadExcel">Excel</option>
+                                                <option value="downloadCsv">CSV</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 col-0"></div>
+                                    </div>
+                                </div>                              
+                                                                
+                                <div class="col-12 col-md-6 py-1">
+                                    <div class="row justify-content-end align-items-center right-btn-margin">
+                                        <div class="px-1">
+                                            <button id="downloadReport" class="btn btn-sm common-btn btn-outline-secondary">
+                                                <i class="fas fa-file-export"></i>
+                                                <span>Export Report</span>
+                                            </button>
+                                        </div>
+                                        <div class="pl-1 pr-0">
+                                            <button id="btnPreviewPdf" class="btn btn-sm btn-outline-secondary common-btn px-4">
+                                                <i class="fas fa-eye" title="Preview"></i>
+                                                <span>Preview</span>
+                                            </button>
+                                        </div>
+                                        <div class="col-md-2"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
+            </div>
         </div>
 
-        <!-- PDF Preview Container -->
+        <!-- PDF Preview -->
         <div class="container-fluid mt-3 mb-4">
             <div id="pdf-preview-container"
                  style="width:100%; height:100vh; border:1px solid #ccc;
                 display:none; border-radius:5px;
-                box-shadow:0 2px 10px rgba(0,0,0,.1);">
+                box-shadow:0 2px 10px rgba(0,0,0,0.1);">
             </div>
         </div>
 
@@ -250,6 +275,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/1.1.2/css/bootstrap-multiselect.min.css">
+
 @section Scripts {
     @{
         await Html.RenderPartialAsync("_ValidationScriptsPartial");

@@ -27,7 +27,7 @@ namespace GCTL.Service.DailyAttendanceSummaryReportService
 
         public async Task<bool> PagePermissionAsync(string accessCode)
         {
-            return await accessCodeRepository.All().AnyAsync(x => x.AccessCodeId == accessCode && x.Title == "Daily Attendance Summary" && x.TitleCheck);
+            return await accessCodeRepository.All().AnyAsync(x => x.AccessCodeId == accessCode && x.Title == "Daily Attendance  Summary" && x.TitleCheck);
         }
 
 
@@ -116,7 +116,7 @@ namespace GCTL.Service.DailyAttendanceSummaryReportService
 
             // ─── Row 2: Report Title ───────────────────────────────
             ws.Cells[2, 1, 2, 6].Merge = true;
-            ws.Cells[2, 1].Value = "Daily Attendance Summary Report";
+            ws.Cells[2, 1].Value = "Daily Attendance  Summary Report";
             ws.Cells[2, 1].Style.Font.Size = 13;
             ws.Cells[2, 1].Style.Font.Name = "Times New Roman";
             ws.Cells[2, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;

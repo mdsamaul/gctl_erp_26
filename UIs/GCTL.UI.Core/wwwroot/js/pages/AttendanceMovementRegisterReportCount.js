@@ -1,4 +1,4 @@
-﻿(function ($) {
+(function ($) {
     $.AttendanceMovementRegisterReportCount = function (options) {
         var settings = $.extend({
             baseUrl: "/",
@@ -429,11 +429,11 @@
                         styles: {
                             fontSize: 9, cellPadding: 3, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1, halign: 'center',  
                             valign: 'middle',
-},
+                        },
                         headStyles: {
-                            fillColor: false, fontStyle: 'bold', halign: 'center', textColor: [0, 0, 0], lineColor: [0, 0, 0], halign: 'center',  
+                            fillColor: false, fontStyle: 'bold', halign: 'center', textColor: [0, 0, 0], lineColor: [0, 0, 0],
                             valign: 'middle',
-},
+                        },
                         columnStyles: {
                             0: { halign: 'center', cellWidth: 20 },
                             1: { halign: 'center', cellWidth: 75 },
@@ -472,10 +472,14 @@
 
 
                 let finalY = doc.lastAutoTable.finalY || 200;
-                if (finalY + 30 > pageHeight - 40) { doc.addPage(); finalY = 120; }
+                if (finalY + 25 > pageHeight - 40) {
+                    doc.addPage();
+                    drawPageHeader(doc);
+                    finalY = 120;
+                }
 
                 doc.setFontSize(10); doc.setTextColor(0, 0, 0); doc.setFont("times", "bold");
-                doc.text('Total Records: ' + totalRecords, leftMargin, finalY + 20);
+                doc.text('Grand Total: ' + totalRecords, leftMargin, finalY + 18);
 
                 const totalPages = doc.getNumberOfPages();
                 for (let i = 1; i <= totalPages; i++) {

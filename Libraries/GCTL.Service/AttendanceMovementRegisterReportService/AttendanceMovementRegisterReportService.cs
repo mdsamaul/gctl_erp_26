@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using GCTL.Core.Data;
 using GCTL.Core.ViewModels.AttendanceMovementRegisterReportDto;
 using GCTL.Data.Models;
@@ -78,7 +78,7 @@ namespace GCTL.Service.AttendanceMovementRegisterReportService
                     {
                         DepartmentCode = g.Key.DepartmentCode,
                         DepartmentName = g.Key.DepartmentName,
-                        TotalEmployees = g.Count(),
+                        TotalEmployees = g.Select(x => x.EmployeeID).Distinct().Count(),
                         Employees = g.ToList()
                     })
                     .ToList();

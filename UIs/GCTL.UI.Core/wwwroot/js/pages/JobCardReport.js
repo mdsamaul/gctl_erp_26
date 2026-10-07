@@ -53,8 +53,8 @@
         }
 
         // ── Date Pickers ─────────────────────────────────────────────
-        var currentYear = new Date().getFullYear();
-        var defaultFromDate = new Date(currentYear, 0, 1); // 01/01/YYYY
+        var now = new Date();
+        var defaultFromDate = new Date(now.getFullYear(), now.getMonth(), 1); // First day of current month (01/MM/YYYY)
         var defaultToDate = new Date(); // Today
 
         flatpickr("#fromDateSelect", {

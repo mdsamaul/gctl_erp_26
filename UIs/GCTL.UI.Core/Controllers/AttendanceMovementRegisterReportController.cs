@@ -1,4 +1,4 @@
-﻿using GCTL.Core.Data;
+using GCTL.Core.Data;
 using GCTL.Core.ViewModels.AttendanceMovementRegisterReportDto;
 using GCTL.Core.ViewModels.GcAccessFilterRequest;
 using GCTL.Data.Models;
@@ -266,8 +266,31 @@ namespace GCTL.UI.Core.Controllers
                         row++;
                     }
 
+                    int deptEmpCount = dept.Employees.Select(x => x.EmployeeID).Where(x => !string.IsNullOrEmpty(x)).Distinct().Count();
+                    if (deptEmpCount == 0) deptEmpCount = dept.Employees.Count;
+
+                    ws.Cells[row, 1, row, 8].Merge = true;
+                    ws.Cells[row, 1].Value = $"Employee Total: {deptEmpCount}";
+                    ws.Cells[row, 1].Style.Font.Bold = true;
+                    for (int i = 1; i <= 8; i++)
+                    {
+                        ws.Cells[row, i].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+                    }
                     row += 2;
                 }
+
+                int grandTotalEmployees = groupedData.SelectMany(d => d.Employees).Select(x => x.EmployeeID).Where(x => !string.IsNullOrEmpty(x)).Distinct().Count();
+                int grandTotalRecords = groupedData.Sum(d => d.Employees.Count);
+
+                ws.Cells[row, 1, row, 8].Merge = true;
+                ws.Cells[row, 1].Value = $"Employee Total: {grandTotalEmployees}";
+                ws.Cells[row, 1].Style.Font.Bold = true;
+                row++;
+
+                ws.Cells[row, 1, row, 8].Merge = true;
+                ws.Cells[row, 1].Value = $"Grand Total: {grandTotalRecords}";
+                ws.Cells[row, 1].Style.Font.Bold = true;
+                row++;
 
                 ws.Cells.AutoFitColumns();
 

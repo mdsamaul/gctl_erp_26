@@ -1,4 +1,4 @@
-﻿(function ($) {
+(function ($) {
     $.attendanceMachineData = function (options) {
         var settings = $.extend({
             baseUrl: "/",
@@ -414,7 +414,14 @@
                 const allLocationLinks = [];
 
                 groupedData.forEach(function (dept, deptIndex) {
-                    if (deptIndex > 0) startY += 15;
+                    if (deptIndex > 0) {
+                        startY += 15;
+                        if (startY + 35 > pageHeight - 30) {
+                            doc.addPage();
+                            drawHeader(doc);
+                            startY = 65;
+                        }
+                    }
 
                     doc.setFontSize(11);
                     doc.setFont("times", "bold");
@@ -456,15 +463,34 @@
                     });
 
                     const deptStartIndex = allLocationLinks.length - tableData.length;
+                    const deptEmpIds = new Set((dept.employees || []).map(e => e.employeeID).filter(Boolean));
+                    const deptEmpCount = deptEmpIds.size || (dept.employees ? dept.employees.length : 0);
 
                     doc.autoTable({
                         head: [['SN', 'Employee ID', 'Name', 'Designation', 'Branch', 'Date', 'Time', 'Machine', 'Location']],
                         body: tableData,
+                        foot: [
+                            [{
+                                content: 'Employee Total: ' + deptEmpCount,
+                                colSpan: 9,
+                                styles: {
+                                    halign: 'left',
+                                    valign: 'middle',
+                                    fontStyle: 'bold',
+                                    fontSize: 8,
+                                    textColor: [0, 0, 0],
+                                    fillColor: [240, 240, 240],
+                                    cellPadding: { top: 3, right: 3, bottom: 3, left: 4 }
+                                }
+                            }]
+                        ],
+                        showFoot: 'lastPage',
                         startY: startY,
                         theme: 'grid',
                         margin: { top: 65, left: leftMargin, right: rightMargin }, 
                         styles: { fontSize: 7, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.1, textColor: [0, 0, 0] },
                         headStyles: { fillColor: [211, 211, 211], textColor: [0, 0, 0], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.1, halign: 'center', valign: 'middle' },
+                        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.1, halign: 'left', valign: 'middle' },
                         columnStyles: {
                             0: { cellWidth: 22, halign: 'center', valign: 'middle' },
                             1: { cellWidth: 50, halign: 'center', valign: 'middle' },
@@ -504,11 +530,26 @@
 
                 if (typeof doc.putTotalPages === 'function') doc.putTotalPages('{total_pages_count_string}');
 
-                let finalY = doc.lastAutoTable.finalY || 200;
-                if (finalY + 20 > pageHeight - 30) { doc.addPage(); drawHeader(doc); finalY = 90; }
+                const allEmpIds = new Set();
+                groupedData.forEach(function (dept) {
+                    (dept.employees || []).forEach(function (emp) {
+                        if (emp.employeeID) allEmpIds.add(emp.employeeID);
+                    });
+                });
+                const grandTotalEmployees = allEmpIds.size || totalRecords;
 
-                doc.setFontSize(9); doc.setTextColor(0, 0, 0); doc.setFont("times", "bold");
-                doc.text('Total Records: ' + totalRecords, leftMargin, finalY + 15);
+                let finalY = doc.lastAutoTable.finalY || 200;
+                if (finalY + 35 > pageHeight - 30) {
+                    doc.addPage();
+                    drawHeader(doc);
+                    finalY = 65;
+                }
+
+                doc.setFontSize(9);
+                doc.setTextColor(0, 0, 0);
+                doc.setFont("times", "bold");
+                doc.text('Employee Total: ' + grandTotalEmployees, leftMargin, finalY + 15);
+                doc.text('Grand Total: ' + totalRecords, leftMargin, finalY + 27);
 
                 if (isPreview) {
                     const pdfBlob = doc.output('blob');
