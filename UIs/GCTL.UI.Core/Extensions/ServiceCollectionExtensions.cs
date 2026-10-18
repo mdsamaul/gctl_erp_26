@@ -106,6 +106,7 @@ using GCTL.Service.InvDefSupplierTypes;
 using GCTL.Service.ItemMasterInformation;
 using GCTL.Service.ItemModelService;
 using GCTL.Service.ItemType;
+using GCTL.Service.JobCardBulkReport;
 using GCTL.Service.JobCardReport;
 using GCTL.Service.JobTitles;
 using GCTL.Service.LeaveAppDay;
@@ -245,6 +246,7 @@ namespace GCTL.UI.Core.Extensions
 
             services.AddScoped<IDailyAttendanceDetailsReportService, DailyAttendanceDetailsReportService>();
             services.AddScoped<IJobCardReportService, JobCardReportService>();
+            services.AddScoped<IJobCardBulkReportService, JobCardBulkReportService>();
             services.AddScoped<IEmployeeWeekendDeclarationService, EmployeeWeekendDeclarationService>();
             services.AddScoped<IAdvanceLoanAdjustmentReportServices, AdvanceLoanAdjustmentReportServices>();
             services.AddScoped<IEmployeeLoanInformationReportServices, EmployeeLoanInformationReportServices>();
