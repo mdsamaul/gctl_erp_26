@@ -56,70 +56,78 @@ namespace GCTL.Service.JobCardReport
         // ── Get Report Data ──────────────────────────────────────────
         public async Task<JobCardReportResultDto> GetReportDataAsync(JobCardReportFilterDto filter)
         {
-            var result = new JobCardReportResultDto();
-
-            var empCsv = filter.EmployeeIds != null && filter.EmployeeIds.Any()
-                ? string.Join(",", filter.EmployeeIds.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()))
-                : null;
-
-            var companyCode = string.IsNullOrWhiteSpace(filter.CompanyCode) ? null : filter.CompanyCode.Trim();
-            var loginEmployeeId = string.IsNullOrWhiteSpace(filter.LoginEmployeeId) ? null : filter.LoginEmployeeId.Trim();
-            var accessCodeId = string.IsNullOrWhiteSpace(filter.AccessCodeId) ? null : filter.AccessCodeId.Trim();
-
-            DateTime? fromDate = ParseDate(filter.FromDate);
-            DateTime? toDate = ParseDate(filter.ToDate);
-
-            using var conn = new SqlConnection(_connectionString);
-            await conn.OpenAsync();
-
-            var param = new DynamicParameters();
-            param.Add("@CompanyCode", companyCode, DbType.String);
-            param.Add("@EmployeeIds", string.IsNullOrWhiteSpace(empCsv) ? null : empCsv, DbType.String);
-            param.Add("@FromDate", fromDate, DbType.Date);
-            param.Add("@ToDate", toDate, DbType.Date);
-            param.Add("@LoginEmployeeId", loginEmployeeId, DbType.String);
-            param.Add("@AccessCodeId", accessCodeId, DbType.String);
-
-            using var multi = await conn.QueryMultipleAsync(
-                "usp_JobCardReport",
-                param,
-                commandType: CommandType.StoredProcedure);
-
-            result.Rows = (await multi.ReadAsync<JobCardReportRowDto>()).ToList();
-
-            var header = await multi.ReadFirstOrDefaultAsync<JobCardReportHeaderDto>();
-            if (header != null)
+            try
             {
-                result.Header = header;
+                var result = new JobCardReportResultDto();
+
+                var empCsv = filter.EmployeeIds != null && filter.EmployeeIds.Any()
+                    ? string.Join(",", filter.EmployeeIds.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()))
+                    : null;
+
+                var companyCode = string.IsNullOrWhiteSpace(filter.CompanyCode) ? null : filter.CompanyCode.Trim();
+                var loginEmployeeId = string.IsNullOrWhiteSpace(filter.LoginEmployeeId) ? null : filter.LoginEmployeeId.Trim();
+                var accessCodeId = string.IsNullOrWhiteSpace(filter.AccessCodeId) ? null : filter.AccessCodeId.Trim();
+
+                DateTime? fromDate = ParseDate(filter.FromDate);
+                DateTime? toDate = ParseDate(filter.ToDate);
+
+                using var conn = new SqlConnection(_connectionString);
+                await conn.OpenAsync();
+
+                var param = new DynamicParameters();
+                param.Add("@CompanyCode", companyCode, DbType.String);
+                param.Add("@EmployeeIds", string.IsNullOrWhiteSpace(empCsv) ? null : empCsv, DbType.String);
+                param.Add("@FromDate", fromDate, DbType.Date);
+                param.Add("@ToDate", toDate, DbType.Date);
+                param.Add("@LoginEmployeeId", loginEmployeeId, DbType.String);
+                param.Add("@AccessCodeId", accessCodeId, DbType.String);
+
+                using var multi = await conn.QueryMultipleAsync(
+                    "usp_JobCardReport",
+                    param,
+                    commandType: CommandType.StoredProcedure);
+
+                result.Rows = (await multi.ReadAsync<JobCardReportRowDto>()).ToList();
+
+                var header = await multi.ReadFirstOrDefaultAsync<JobCardReportHeaderDto>();
+                if (header != null)
+                {
+                    result.Header = header;
+                }
+                else
+                {
+                    result.Header = new JobCardReportHeaderDto
+                    {
+                        CompanyName = "DataPath Ltd.",
+                        FromDate = fromDate.HasValue ? fromDate.Value.ToString("dd/MM/yyyy") : "",
+                        ToDate = toDate.HasValue ? toDate.Value.ToString("dd/MM/yyyy") : "",
+                        DateRangeDisplay = $"Date: {(fromDate.HasValue ? fromDate.Value.ToString("dd/MM/yyyy") : "")} - {(toDate.HasValue ? toDate.Value.ToString("dd/MM/yyyy") : "")}"
+                    };
+                }
+
+                // Group by employee for convenience
+                var grouped = result.Rows
+                    .GroupBy(r => r.EmployeeId)
+                    .Select(g => new EmployeeJobCardGroupDto
+                    {
+                        EmployeeId = g.Key,
+                        EmployeeName = g.First().EmployeeName,
+                        Designation = g.First().Designation,
+                        DepartmentName = g.First().DepartmentName,
+                        CompanyName = g.First().CompanyName,
+                        Rows = g.ToList()
+                    })
+                    .ToList();
+
+                result.EmployeeGroups = grouped;
+
+                return result;
             }
-            else
+            catch (Exception)
             {
-                result.Header = new JobCardReportHeaderDto
-                {
-                    CompanyName = "DataPath Ltd.",
-                    FromDate = fromDate.HasValue ? fromDate.Value.ToString("dd/MM/yyyy") : "",
-                    ToDate = toDate.HasValue ? toDate.Value.ToString("dd/MM/yyyy") : "",
-                    DateRangeDisplay = $"Date: {(fromDate.HasValue ? fromDate.Value.ToString("dd/MM/yyyy") : "")} - {(toDate.HasValue ? toDate.Value.ToString("dd/MM/yyyy") : "")}"
-                };
+
+                throw;
             }
-
-            // Group by employee for convenience
-            var grouped = result.Rows
-                .GroupBy(r => r.EmployeeId)
-                .Select(g => new EmployeeJobCardGroupDto
-                {
-                    EmployeeId = g.Key,
-                    EmployeeName = g.First().EmployeeName,
-                    Designation = g.First().Designation,
-                    DepartmentName = g.First().DepartmentName,
-                    CompanyName = g.First().CompanyName,
-                    Rows = g.ToList()
-                })
-                .ToList();
-
-            result.EmployeeGroups = grouped;
-
-            return result;
         }
 
         // ── Excel Export ─────────────────────────────────────────────
