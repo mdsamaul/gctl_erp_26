@@ -88,7 +88,7 @@ namespace GCTL.UI.Core.Controllers
                 string fileName;
                 string contentType;
 
-                string baseFileName = $"EmployeeSalaryInfoReport_{DateTime.Now:yyyyMMdd_HHmmss}";
+                string baseFileName = $"EmployeeSalaryInfoReport";
 
                 switch (request.ExportFormat.ToLower())
                 {

@@ -806,7 +806,7 @@ namespace GCTL.UI.Core.Controllers
                 if (model.ReportFormat == "pdf")
                 {
                     var pdfBytes = _leaveApplicatioinEntry.GenerateLeavePdfReportArray(data, Sdate, Edate);
-                    string fileName = $"LeaveReport_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                    string fileName = $"LeaveReport.pdf";
 
                     return File(pdfBytes, "application/pdf", fileName);
                 }

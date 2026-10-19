@@ -67,7 +67,7 @@ namespace GCTL.UI.Core.Controllers
 
                 var logoPath = Path.Combine(_env.WebRootPath, "images", "DP_logo.png");
                 var bytes = await _service.ExportExcelAsync(filter, logoPath);
-                var fileName = $"JobCardReport_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+                var fileName = $"JobCardReport.xlsx";
                 return File(bytes,
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     fileName);
@@ -87,7 +87,7 @@ namespace GCTL.UI.Core.Controllers
                 filter.AccessCodeId = LoginInfo.AccessCode;
 
                 var bytes = await _service.ExportCsvAsync(filter);
-                var fileName = $"JobCardReport_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+                var fileName = $"JobCardReport.csv";
                 return File(bytes,
                     "text/csv; charset=utf-8",
                     fileName);

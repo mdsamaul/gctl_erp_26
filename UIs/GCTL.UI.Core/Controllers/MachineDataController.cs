@@ -113,7 +113,7 @@
 //                        toMonth,
 //                        toYear);
 
-//                var fileName = $"Attendance_Report_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+//                var fileName = $"Attendance_Report.xlsx";
 
 //                return File(
 //                    excelBytes,
@@ -287,7 +287,7 @@ namespace GCTL.UI.Core.Controllers
                         toMonth,
                         toYear);
 
-                var fileName = $"Attendance_Report_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+                var fileName = $"Attendance_Report.xlsx";
 
                 return File(
                     excelBytes,

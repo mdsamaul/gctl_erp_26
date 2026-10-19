@@ -105,7 +105,7 @@ namespace GCTL.UI.Core.Controllers
                 byte[] fileBytes;
                 string fileName;
                 string contentType;
-                string baseFileName = $"LeaveSummaryReport_{DateTime.Now:yyyyMMdd_HHmmss}";
+                string baseFileName = $"LeaveSummaryReport";
 
                 switch (format)
                 {

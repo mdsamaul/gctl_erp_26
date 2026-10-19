@@ -66,7 +66,7 @@ namespace GCTL.UI.Core.Controllers
 
                 var logoPath = Path.Combine(_env.WebRootPath, "images", "DP_logo.png");
                 var bytes = await _service.ExportExcelAsync(filter, logoPath);
-                var fileName = $"DailyAttendance_{filter.ReportType}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+                var fileName = $"DailyAttendance_{filter.ReportType}.xlsx";
                 return File(bytes,
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     fileName);

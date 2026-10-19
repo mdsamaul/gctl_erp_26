@@ -65,6 +65,9 @@ namespace GCTL.UI.Core.Controllers
             return View(model);
         }
 
+
+
+
         [HttpPost]
         public async Task<IActionResult> GetSummary([FromBody] JobCardBulkReportFilterDto filter)
         {
@@ -111,7 +114,7 @@ namespace GCTL.UI.Core.Controllers
 
                 var logoPath = Path.Combine(_env.WebRootPath, "images", "DP_logo.png");
                 var bytes = await _service.GeneratePdfAsync(filter, logoPath);
-                var fileName = $"JobCardBulkReport_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                var fileName = $"JobCardBulkReport.pdf";
 
                 return File(bytes, "application/pdf", fileName);
             }
@@ -131,7 +134,7 @@ namespace GCTL.UI.Core.Controllers
 
                 var logoPath = Path.Combine(_env.WebRootPath, "images", "DP_logo.png");
                 var bytes = await _service.ExportExcelAsync(filter, logoPath);
-                var fileName = $"JobCardBulkReport_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+                var fileName = $"JobCardBulkReport.xlsx";
 
                 return File(bytes,
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -152,7 +155,7 @@ namespace GCTL.UI.Core.Controllers
                 filter.AccessCodeId = LoginInfo.AccessCode;
 
                 var bytes = await _service.ExportCsvAsync(filter);
-                var fileName = $"JobCardBulkReport_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+                var fileName = $"JobCardBulkReport.csv";
 
                 return File(bytes,
                     "text/csv; charset=utf-8",

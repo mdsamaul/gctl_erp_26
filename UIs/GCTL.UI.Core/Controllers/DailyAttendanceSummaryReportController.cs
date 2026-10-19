@@ -61,7 +61,7 @@ namespace GCTL.UI.Core.Controllers
                 return File(
                     fileBytes,
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    $"DailyAttendanceSummaryReport_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx"
+                    $"DailyAttendanceSummaryReport.xlsx"
                 );
             }
             catch (Exception ex)

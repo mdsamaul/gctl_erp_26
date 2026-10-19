@@ -281,7 +281,7 @@ namespace GCTL.Web.Controllers
                 {
                     // Default to PDF (for "pdf", "downloadPdf", or any other selection)
                     var bytes = _leaveReportService.GeneratePdfReportArray(data, sdate, edate);
-                    return File(bytes, "application/pdf", $"LeaveReport_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+                    return File(bytes, "application/pdf", $"LeaveReport.pdf");
                 }
             }
             catch (Exception ex)
