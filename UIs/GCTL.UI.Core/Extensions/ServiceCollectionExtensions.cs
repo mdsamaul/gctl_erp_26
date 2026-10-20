@@ -108,6 +108,7 @@ using GCTL.Service.ItemModelService;
 using GCTL.Service.ItemType;
 using GCTL.Service.JobCardBulkReport;
 using GCTL.Service.JobCardReport;
+using GCTL.Service.MonthlyAttendance;
 using GCTL.Service.JobTitles;
 using GCTL.Service.LeaveAppDay;
 using GCTL.Service.LeaveReport;
@@ -247,6 +248,7 @@ namespace GCTL.UI.Core.Extensions
             services.AddScoped<IDailyAttendanceDetailsReportService, DailyAttendanceDetailsReportService>();
             services.AddScoped<IJobCardReportService, JobCardReportService>();
             services.AddScoped<IJobCardBulkReportService, JobCardBulkReportService>();
+            services.AddScoped<IMonthlyAttendanceService, MonthlyAttendanceService>();
             services.AddScoped<IEmployeeWeekendDeclarationService, EmployeeWeekendDeclarationService>();
             services.AddScoped<IAdvanceLoanAdjustmentReportServices, AdvanceLoanAdjustmentReportServices>();
             services.AddScoped<IEmployeeLoanInformationReportServices, EmployeeLoanInformationReportServices>();

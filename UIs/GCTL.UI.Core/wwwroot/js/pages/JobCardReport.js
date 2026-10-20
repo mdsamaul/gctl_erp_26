@@ -120,6 +120,15 @@
             img.src = url;
         }
 
+        function cleanZero(val) {
+            if (val === null || val === undefined) return '';
+            var s = String(val).trim();
+            if (s === '0' || s === '0.0' || s === '0.00' || s === '00:00:00' || s === '0:00:00' || s === '00:00' || s === '0:00' || s === '--:--' || s === '--:--:--') {
+                return '';
+            }
+            return s;
+        }
+
         function getStatusColor(status) {
             var s = (status || '').trim();
             if (s === 'P') return [40, 167, 69];    // Green
@@ -194,7 +203,7 @@
                     // Report Subtitle (Centered)
                     doc.setFont('times', 'bold');
                     doc.setFontSize(9.5);
-                    doc.text('Job Card Report', PW / 2, 42, { align: 'center' });
+                    doc.text('Attendance Job Card Report', PW / 2, 42, { align: 'center' });
 
                     // Date Range (Centered)
                     doc.setFont('times', 'normal');
@@ -271,11 +280,10 @@
                             r.dateDisplay || '',
                             r.day || '',
                             r.shift || '',
-                            r.inTime || '',
-                            r.late || '00:00:00',
-                            r.outTime || '',
-                            r.earlyOut || '00:00:00',
-                            r.workHours || '00:00:00',
+                            cleanZero(r.inTime),
+                            cleanZero(r.late),
+                            cleanZero(r.outTime),
+                            cleanZero(r.workHours),
                             r.status || '',
                             r.remarks || ''
                         ];
@@ -293,7 +301,6 @@
                             'In Time',
                             'Late',
                             'Out Time',
-                            'Early Out',
                             'W. Hour(s)',
                             'Status',
                             'Remarks'
@@ -322,26 +329,25 @@
                             fillColor: [255, 255, 255]
                         },
                         columnStyles: {
-                            0: { cellWidth: 46 }, // Date
-                            1: { cellWidth: 46 }, // Day
-                            2: { cellWidth: 105 }, // Shift
-                            3: { cellWidth: 62 }, // In Time
-                            4: { cellWidth: 46 }, // Late
-                            5: { cellWidth: 62 }, // Out Time
-                            6: { cellWidth: 46 }, // Early Out
-                            7: { cellWidth: 48 }, // W. Hour(s)
-                            8: { cellWidth: 32 }, // Status
-                            9: { cellWidth: 'auto', halign: 'left' } // Remarks
+                            0: { cellWidth: 52 }, // Date
+                            1: { cellWidth: 52 }, // Day
+                            2: { cellWidth: 90 }, // Shift
+                            3: { cellWidth: 55 }, // In Time
+                            4: { cellWidth: 48 }, // Late
+                            5: { cellWidth: 55 }, // Out Time
+                            6: { cellWidth: 52 }, // W. Hour(s)
+                            7: { cellWidth: 36 }, // Status
+                            8: { cellWidth: 'auto', halign: 'left' } // Remarks
                         },
                         didParseCell: function (cellData) {
                             if (cellData.section === 'body') {
-                                if (cellData.column.index === 9) {
+                                if (cellData.column.index === 8) {
                                     cellData.cell.styles.halign = 'left';
                                 }
                             }
                         },
                         willDrawCell: function (cellData) {
-                            if (cellData.section === 'body' && cellData.column.index === 8) {
+                            if (cellData.section === 'body' && cellData.column.index === 7) {
                                 var statusVal = cellData.cell.raw;
                                 var color = getStatusColor(statusVal);
                                 doc.setTextColor(color[0], color[1], color[2]);
@@ -354,11 +360,10 @@
                         }
                     });
 
-                    // ── Bottom Summary & Stats Section (Fixed in Footer area of Employee's Last Page) ──
-                    var boxH = 62;
-                    var boxTopY = PH - 130;
+                    // ── Bottom Summary & Stats Section ───────────────────────
+                    var boxH = 65;
+                    var boxTopY = PH - 135;
 
-                    // If table on this page reached into the footer area, add a page
                     if (doc.lastAutoTable.finalY > boxTopY - 10) {
                         doc.addPage();
                         drawHeader();
@@ -373,150 +378,111 @@
                     var weekendCount = 0;
                     var holidayCount = 0;
                     var leaveCount = 0;
-                    var earlyOutCount = 0;
-
-                    var totalLateSec = 0;
-                    var totalWorkSec = 0;
+                    var totalWorkHrs = 0;
 
                     (emp.rows || []).forEach(function (r) {
                         var st = (r.status || '').trim();
-                        var lt = (r.late || '').trim();
-                        var eo = (r.earlyOut || '').trim();
                         var wh = (r.workHours || '').trim();
 
-                        if (st === 'P') {
-                            presentCount++;
-                        } else if (st === 'L') {
-                            lateCount++;
-                        } else if (st === 'A') {
-                            absentCount++;
-                        } else if (st === 'W') {
-                            weekendCount++;
-                        } else if (st === 'H') {
-                            holidayCount++;
-                        } else {
-                            leaveCount++;
-                        }
+                        if (st === 'P') presentCount++;
+                        else if (st === 'L') lateCount++;
+                        else if (st === 'A') absentCount++;
+                        else if (st === 'W') weekendCount++;
+                        else if (st === 'H') holidayCount++;
+                        else leaveCount++;
 
-                        if (lt && lt !== '00:00:00') {
-                            var lp = lt.split(':');
-                            if (lp.length === 3) {
-                                totalLateSec += (parseInt(lp[0], 10) * 3600) + (parseInt(lp[1], 10) * 60) + parseInt(lp[2], 10);
-                            }
-                        }
-
-                        if (eo && eo !== '00:00:00') {
-                            earlyOutCount++;
-                        }
-
-                        if (wh && wh !== '00:00:00') {
-                            var wp = wh.split(':');
-                            if (wp.length === 3) {
-                                totalWorkSec += (parseInt(wp[0], 10) * 3600) + (parseInt(wp[1], 10) * 60) + parseInt(wp[2], 10);
+                        if (wh && wh !== '00:00:00' && wh !== '0.00' && wh !== '0') {
+                            if (wh.indexOf(':') !== -1) {
+                                var wp = wh.split(':');
+                                if (wp.length === 3) {
+                                    totalWorkHrs += ((parseInt(wp[0], 10) * 3600) + (parseInt(wp[1], 10) * 60) + parseInt(wp[2], 10)) / 3600;
+                                } else if (wp.length === 2) {
+                                    totalWorkHrs += ((parseInt(wp[0], 10) * 3600) + (parseInt(wp[1], 10) * 60)) / 3600;
+                                }
+                            } else {
+                                var decW = parseFloat(wh);
+                                if (!isNaN(decW)) {
+                                    totalWorkHrs += decW;
+                                }
                             }
                         }
                     });
 
-                    function formatDurationStr(sec) {
-                        var h = Math.floor(sec / 3600);
-                        var rem = sec % 3600;
-                        var m = Math.floor(rem / 60);
-                        var s = rem % 60;
-                        return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-                    }
-
-                    var totalPresent = presentCount + lateCount;
-                    var totalWorkingDays = totalRows - weekendCount - holidayCount;
-                    var totalAtt = totalPresent + weekendCount + holidayCount + leaveCount;
-
-                    var totalLateStr = formatDurationStr(totalLateSec);
-                    var totalWorkStr = formatDurationStr(totalWorkSec);
-
-                    var avgTimeStr = "0:00";
-                    if (totalPresent > 0) {
-                        var avgSec = Math.round(totalWorkSec / totalPresent);
-                        var avgH = Math.floor(avgSec / 3600);
-                        var avgM = Math.floor((avgSec % 3600) / 60);
-                        avgTimeStr = avgH + ':' + String(avgM).padStart(2, '0');
-                    }
+                    var totalPresent = emp.totalPresent !== undefined ? emp.totalPresent : (presentCount + lateCount);
+                    var totalAbsent = emp.totalAbsent !== undefined ? emp.totalAbsent : absentCount;
+                    var totalLate = emp.totalLate !== undefined ? emp.totalLate : lateCount;
+                    var totalLeave = emp.totalLeave !== undefined ? emp.totalLeave : leaveCount;
+                    var totalWeekend = emp.totalWeekend !== undefined ? emp.totalWeekend : weekendCount;
+                    var totalHoliday = emp.totalHoliday !== undefined ? emp.totalHoliday : holidayCount;
+                    var totalAtt = emp.totalAtt !== undefined ? emp.totalAtt : (totalPresent + totalWeekend + totalHoliday + totalLeave);
+                    var totalWorkHrsVal = emp.totalWorkHours !== undefined ? Number(emp.totalWorkHours).toFixed(2) : totalWorkHrs.toFixed(2);
+                    var aveWorkHrsVal = emp.aveWorkHoursPerDay !== undefined
+                        ? Number(emp.aveWorkHoursPerDay).toFixed(2)
+                        : (totalPresent > 0 ? (totalWorkHrs / totalPresent).toFixed(2) : "0.00");
 
                     // 1. Draw Border around Attendance Summary Box
                     var boxX = LEFT_MARGIN;
-                    var boxW = 194;
+                    var boxW = 265;
 
                     doc.setDrawColor(180, 180, 180);
                     doc.setLineWidth(0.5);
                     doc.rect(boxX, boxTopY, boxW, boxH);
 
-                    // 2. Attendance Summary Statistics Text Inside Border
-                    doc.setFontSize(7);
+                    // 2. Attendance Summary Statistics Text Inside Border (exact match to Excel)
+                    doc.setFontSize(7.5);
                     doc.setTextColor(0, 0, 0);
 
-                    // Row 1 (boxTopY + 11)
+                    // Row 1
                     doc.setFont('times', 'bold');
-                    doc.text('Total Working Days', boxX + 6, boxTopY + 11);
+                    doc.text('Total Present :', boxX + 70, boxTopY + 11, { align: 'right' });
                     doc.setFont('times', 'normal');
-                    doc.text(String(totalWorkingDays), boxX + 90, boxTopY + 11, { align: 'right' });
+                    doc.text(String(totalPresent), boxX + 75, boxTopY + 11);
 
                     doc.setFont('times', 'bold');
-                    doc.text('Total Weekend:', boxX + 100, boxTopY + 11);
+                    doc.text('Total Weekend:', boxX + 205, boxTopY + 11, { align: 'right' });
                     doc.setFont('times', 'normal');
-                    doc.text(String(weekendCount), boxX + 186, boxTopY + 11, { align: 'right' });
+                    doc.text(String(totalWeekend), boxX + 210, boxTopY + 11);
 
-                    // Row 2 (boxTopY + 22)
+                    // Row 2
                     doc.setFont('times', 'bold');
-                    doc.text('Total Present:', boxX + 25, boxTopY + 22);
+                    doc.text('Total Absent :', boxX + 70, boxTopY + 23, { align: 'right' });
                     doc.setFont('times', 'normal');
-                    doc.text(String(totalPresent), boxX + 90, boxTopY + 22, { align: 'right' });
+                    doc.text(String(totalAbsent), boxX + 75, boxTopY + 23);
 
                     doc.setFont('times', 'bold');
-                    doc.text('Total Holiday:', boxX + 105, boxTopY + 22);
+                    doc.text('Total Holiday:', boxX + 205, boxTopY + 23, { align: 'right' });
                     doc.setFont('times', 'normal');
-                    doc.text(String(holidayCount), boxX + 186, boxTopY + 22, { align: 'right' });
+                    doc.text(String(totalHoliday), boxX + 210, boxTopY + 23);
 
-                    // Row 3 (boxTopY + 33)
+                    // Row 3
                     doc.setFont('times', 'bold');
-                    doc.text('Total Absent:', boxX + 26, boxTopY + 33);
+                    doc.text('Total Late :', boxX + 70, boxTopY + 35, { align: 'right' });
                     doc.setFont('times', 'normal');
-                    doc.text(String(absentCount), boxX + 90, boxTopY + 33, { align: 'right' });
+                    doc.text(String(totalLate), boxX + 75, boxTopY + 35);
 
                     doc.setFont('times', 'bold');
-                    doc.text('Total Early Out:', boxX + 98, boxTopY + 33);
+                    doc.text('Total Att.:', boxX + 205, boxTopY + 35, { align: 'right' });
                     doc.setFont('times', 'normal');
-                    doc.text(String(earlyOutCount), boxX + 186, boxTopY + 33, { align: 'right' });
+                    doc.text(String(totalAtt), boxX + 210, boxTopY + 35);
 
-                    // Row 4 (boxTopY + 44)
+                    // Row 4
                     doc.setFont('times', 'bold');
-                    doc.text('Total Late:', boxX + 34, boxTopY + 44);
+                    doc.text('Total Leave :', boxX + 70, boxTopY + 47, { align: 'right' });
                     doc.setFont('times', 'normal');
-                    doc.text(String(lateCount), boxX + 90, boxTopY + 44, { align: 'right' });
+                    doc.text(String(totalLeave), boxX + 75, boxTopY + 47);
 
                     doc.setFont('times', 'bold');
-                    doc.text('Total Att.:', boxX + 117, boxTopY + 44);
+                    doc.text('Ave. W. Hrs/Day.:', boxX + 205, boxTopY + 47, { align: 'right' });
                     doc.setFont('times', 'normal');
-                    doc.text(String(totalAtt), boxX + 186, boxTopY + 44, { align: 'right' });
+                    doc.text(String(aveWorkHrsVal), boxX + 210, boxTopY + 47);
 
-                    // Row 5 (boxTopY + 55)
+                    // Row 5
                     doc.setFont('times', 'bold');
-                    doc.text('Total Leave:', boxX + 30, boxTopY + 55);
+                    doc.text('Total W. Hrs :', boxX + 70, boxTopY + 59, { align: 'right' });
                     doc.setFont('times', 'normal');
-                    doc.text(String(leaveCount), boxX + 90, boxTopY + 55, { align: 'right' });
+                    doc.text(String(totalWorkHrsVal), boxX + 75, boxTopY + 59);
 
-                    // 3. Column Totals Beside the Box
-                    doc.setFont('times', 'bold');
-                    doc.setFontSize(8);
-                    doc.setTextColor(0, 0, 0);
-
-                    // Under column Late (center X ~302) on Row 1
-                    doc.text(totalLateStr, 302, boxTopY + 11, { align: 'center' });
-
-                    // Under column W. Hour(s) (center X ~457) on Row 1
-                    doc.text(totalWorkStr, 457, boxTopY + 11, { align: 'center' });
-
-                    // Average Time on Row 4
-                    doc.text('Average Time:     ' + avgTimeStr, 380, boxTopY + 44);
-
-                    // 4. Signature Block (Above Footer)
+                    // 3. Signatures
                     var sigLineY = PH - 58;
                     var sigTextY = PH - 48;
 

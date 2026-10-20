@@ -81,6 +81,10 @@ namespace GCTL.Service.JobCardBulkReport
                     ? ToCsv(filter.CompanyCodes)
                     : (!string.IsNullOrWhiteSpace(filter.CompanyCode) ? filter.CompanyCode.Trim() : null);
 
+                var branchCsv = filter.BranchCodes != null && filter.BranchCodes.Any()
+                    ? ToCsv(filter.BranchCodes)
+                    : (!string.IsNullOrWhiteSpace(filter.BranchCode) ? filter.BranchCode.Trim() : null);
+
                 var deptCsv = ToCsv(filter.DepartmentCodes);
                 var desigCsv = ToCsv(filter.DesignationCodes);
                 var empCsv = ToCsv(filter.EmployeeIds);
@@ -103,6 +107,7 @@ namespace GCTL.Service.JobCardBulkReport
 
                 var param = new DynamicParameters();
                 param.Add("@CompanyCode", compCsv, DbType.String);
+                param.Add("@BranchCodes", branchCsv, DbType.String);
                 param.Add("@DepartmentCodes", deptCsv, DbType.String);
                 param.Add("@DesignationCodes", desigCsv, DbType.String);
                 param.Add("@EmployeeIds", empCsv, DbType.String);
@@ -120,6 +125,14 @@ namespace GCTL.Service.JobCardBulkReport
                     commandTimeout: 300);
 
                 result.Rows = (await multi.ReadAsync<JobCardBulkReportRowDto>()).ToList();
+                foreach (var r in result.Rows)
+                {
+                    r.InTime = CleanZero(r.InTime);
+                    r.Late = CleanZero(r.Late);
+                    r.OutTime = CleanZero(r.OutTime);
+                    r.EarlyOut = CleanZero(r.EarlyOut);
+                    r.WorkHours = CleanZero(r.WorkHours);
+                }
 
                 var header = await multi.ReadFirstOrDefaultAsync<JobCardBulkReportHeaderDto>();
                 if (header != null)
@@ -338,7 +351,7 @@ namespace GCTL.Service.JobCardBulkReport
                     var centerCell = new Cell().SetBorder(iText.Layout.Borders.Border.NO_BORDER)
                         .SetTextAlignment(TextAlignment.CENTER)
                         .Add(new Paragraph(data.Header?.CompanyName ?? "DataPath Ltd.").SetFont(boldFont).SetFontSize(12))
-                        .Add(new Paragraph("Job Card Report").SetFont(boldFont).SetFontSize(10))
+                        .Add(new Paragraph("Attendance Job Card Report").SetFont(boldFont).SetFontSize(10))
                         .Add(new Paragraph(data.Header?.DateRangeDisplay ?? "").SetFont(regularFont).SetFontSize(8.5f));
                     headerTable.AddCell(centerCell);
 
@@ -415,25 +428,28 @@ namespace GCTL.Service.JobCardBulkReport
                     document.Add(table);
 
                     // Attendance Summary Box
-                    var sumTable = new Table(UnitValue.CreatePercentArray(new float[] { 25, 25, 25, 25 }))
-                        .SetWidth(UnitValue.CreatePointValue(240))
+                    var sumTable = new Table(UnitValue.CreatePercentArray(new float[] { 28, 14, 38, 20 }))
+                        .SetWidth(UnitValue.CreatePointValue(270))
                         .SetMarginTop(8)
                         .SetBorder(new SolidBorder(ColorConstants.GRAY, 0.5f));
 
                     void AddSumCell(string lbl, string val)
                     {
-                        sumTable.AddCell(new Cell().SetBorder(iText.Layout.Borders.Border.NO_BORDER).SetPadding(2).Add(new Paragraph(lbl).SetFont(boldFont).SetFontSize(7)));
-                        sumTable.AddCell(new Cell().SetBorder(iText.Layout.Borders.Border.NO_BORDER).SetPadding(2).SetTextAlignment(TextAlignment.RIGHT).Add(new Paragraph(val).SetFont(regularFont).SetFontSize(7)));
+                        sumTable.AddCell(new Cell().SetBorder(iText.Layout.Borders.Border.NO_BORDER).SetPadding(2).SetTextAlignment(TextAlignment.RIGHT).Add(new Paragraph(lbl).SetFont(boldFont).SetFontSize(7)));
+                        sumTable.AddCell(new Cell().SetBorder(iText.Layout.Borders.Border.NO_BORDER).SetPadding(2).SetTextAlignment(TextAlignment.LEFT).Add(new Paragraph(val).SetFont(regularFont).SetFontSize(7)));
                     }
 
-                    AddSumCell("Total Present:", emp.TotalPresent.ToString());
+                    AddSumCell("Total Present :", emp.TotalPresent.ToString());
                     AddSumCell("Total Weekend:", emp.TotalWeekend.ToString());
-                    AddSumCell("Total Absent:", emp.TotalAbsent.ToString());
+                    AddSumCell("Total Absent :", emp.TotalAbsent.ToString());
                     AddSumCell("Total Holiday:", emp.TotalHoliday.ToString());
-                    AddSumCell("Total Late:", emp.TotalLate.ToString());
+                    AddSumCell("Total Late :", emp.TotalLate.ToString());
                     AddSumCell("Total Att.:", emp.TotalAtt.ToString());
-                    AddSumCell("Total Leave:", emp.TotalLeave.ToString());
-                    AddSumCell("Ave W.Hour:", emp.AveWorkHoursPerDay.ToString("F2"));
+                    AddSumCell("Total Leave :", emp.TotalLeave.ToString());
+                    AddSumCell("Ave. W. Hrs/Day.:", emp.AveWorkHoursPerDay.ToString("0.00"));
+                    AddSumCell("Total W. Hrs :", emp.TotalWorkHours.ToString("0.00"));
+                    sumTable.AddCell(new Cell().SetBorder(iText.Layout.Borders.Border.NO_BORDER));
+                    sumTable.AddCell(new Cell().SetBorder(iText.Layout.Borders.Border.NO_BORDER));
 
                     document.Add(sumTable);
 
@@ -554,16 +570,24 @@ namespace GCTL.Service.JobCardBulkReport
                 currentRow += 2;
 
                 // Employee Info Block
-                ws.Cells[currentRow, 1].Value = "Emp. ID"; ws.Cells[currentRow, 2].Value = ": " + emp.EmployeeId;
+                ws.Cells[currentRow, 1].Value = "Emp. ID";
+                ws.Cells[currentRow, 2, currentRow, colCount].Merge = true;
+                ws.Cells[currentRow, 2].Value = ": " + emp.EmployeeId;
                 ws.Cells[currentRow, 1].Style.Font.Bold = true; currentRow++;
 
-                ws.Cells[currentRow, 1].Value = "Name"; ws.Cells[currentRow, 2].Value = ": " + emp.EmployeeName;
+                ws.Cells[currentRow, 1].Value = "Name";
+                ws.Cells[currentRow, 2, currentRow, colCount].Merge = true;
+                ws.Cells[currentRow, 2].Value = ": " + emp.EmployeeName;
                 ws.Cells[currentRow, 1].Style.Font.Bold = true; currentRow++;
 
-                ws.Cells[currentRow, 1].Value = "Designation"; ws.Cells[currentRow, 2].Value = ": " + emp.Designation;
+                ws.Cells[currentRow, 1].Value = "Designation";
+                ws.Cells[currentRow, 2, currentRow, colCount].Merge = true;
+                ws.Cells[currentRow, 2].Value = ": " + emp.Designation;
                 ws.Cells[currentRow, 1].Style.Font.Bold = true; currentRow++;
 
-                ws.Cells[currentRow, 1].Value = "Department"; ws.Cells[currentRow, 2].Value = ": " + emp.DepartmentName;
+                ws.Cells[currentRow, 1].Value = "Department";
+                ws.Cells[currentRow, 2, currentRow, colCount].Merge = true;
+                ws.Cells[currentRow, 2].Value = ": " + emp.DepartmentName;
                 ws.Cells[currentRow, 1].Style.Font.Bold = true; currentRow++;
 
                 currentRow++; // Empty row before table
@@ -613,23 +637,52 @@ namespace GCTL.Service.JobCardBulkReport
 
                 // Summary Stats Box
                 currentRow++;
-                ws.Cells[currentRow, 1].Value = "Total Present :"; ws.Cells[currentRow, 2].Value = emp.TotalPresent;
-                ws.Cells[currentRow, 4].Value = "Total Weekend:"; ws.Cells[currentRow, 5].Value = emp.TotalWeekend;
+                ws.Cells[currentRow, 1].Value = "Total Present :";
+                ws.Cells[currentRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                ws.Cells[currentRow, 2].Value = emp.TotalPresent;
+                ws.Cells[currentRow, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
+                ws.Cells[currentRow, 4].Value = "Total Weekend:";
+                ws.Cells[currentRow, 4].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                ws.Cells[currentRow, 5].Value = emp.TotalWeekend;
+                ws.Cells[currentRow, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
                 currentRow++;
 
-                ws.Cells[currentRow, 1].Value = "Total Absent :"; ws.Cells[currentRow, 2].Value = emp.TotalAbsent;
-                ws.Cells[currentRow, 4].Value = "Total Holiday:"; ws.Cells[currentRow, 5].Value = emp.TotalHoliday;
+                ws.Cells[currentRow, 1].Value = "Total Absent :";
+                ws.Cells[currentRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                ws.Cells[currentRow, 2].Value = emp.TotalAbsent;
+                ws.Cells[currentRow, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
+                ws.Cells[currentRow, 4].Value = "Total Holiday:";
+                ws.Cells[currentRow, 4].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                ws.Cells[currentRow, 5].Value = emp.TotalHoliday;
+                ws.Cells[currentRow, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
                 currentRow++;
 
-                ws.Cells[currentRow, 1].Value = "Total Late :"; ws.Cells[currentRow, 2].Value = emp.TotalLate;
-                ws.Cells[currentRow, 4].Value = "Total Att.:"; ws.Cells[currentRow, 5].Value = emp.TotalAtt;
+                ws.Cells[currentRow, 1].Value = "Total Late :";
+                ws.Cells[currentRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                ws.Cells[currentRow, 2].Value = emp.TotalLate;
+                ws.Cells[currentRow, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
+                ws.Cells[currentRow, 4].Value = "Total Att.:";
+                ws.Cells[currentRow, 4].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                ws.Cells[currentRow, 5].Value = emp.TotalAtt;
+                ws.Cells[currentRow, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
                 currentRow++;
 
-                ws.Cells[currentRow, 1].Value = "Total Leave :"; ws.Cells[currentRow, 2].Value = emp.TotalLeave;
-                ws.Cells[currentRow, 4].Value = "Ave. W. Hrs/Day.:"; ws.Cells[currentRow, 5].Value = emp.AveWorkHoursPerDay;
+                ws.Cells[currentRow, 1].Value = "Total Leave :";
+                ws.Cells[currentRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                ws.Cells[currentRow, 2].Value = emp.TotalLeave;
+                ws.Cells[currentRow, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
+                ws.Cells[currentRow, 4].Value = "Ave. W. Hrs/Day.:";
+                ws.Cells[currentRow, 4].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                ws.Cells[currentRow, 5].Value = emp.AveWorkHoursPerDay;
+                ws.Cells[currentRow, 5].Style.Numberformat.Format = "0.00";
+                ws.Cells[currentRow, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
                 currentRow++;
 
-                ws.Cells[currentRow, 1].Value = "Total W. Hrs :"; ws.Cells[currentRow, 2].Value = emp.TotalWorkHours;
+                ws.Cells[currentRow, 1].Value = "Total W. Hrs :";
+                ws.Cells[currentRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                ws.Cells[currentRow, 2].Value = emp.TotalWorkHours;
+                ws.Cells[currentRow, 2].Style.Numberformat.Format = "0.00";
+                ws.Cells[currentRow, 2].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
 
                 if (ws.Dimension != null)
                 {
@@ -747,6 +800,17 @@ namespace GCTL.Service.JobCardBulkReport
                 return parsed.Date;
 
             return null;
+        }
+
+        private static string CleanZero(string? val)
+        {
+            if (string.IsNullOrWhiteSpace(val)) return "";
+            var v = val.Trim();
+            if (v == "0" || v == "0.0" || v == "0.00" || v == "00:00:00" || v == "0:00:00" || v == "00:00" || v == "0:00" || v == "--:--" || v == "--:--:--")
+                return "";
+            if (decimal.TryParse(v, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) && d == 0m)
+                return "";
+            return v;
         }
     }
 }

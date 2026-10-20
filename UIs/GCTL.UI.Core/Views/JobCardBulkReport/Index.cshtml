@@ -175,7 +175,7 @@
                 <div class="col-12 col-md-11 mx-auto dropdown-wrapper">
                     <div class="row pb-2">
 
-                        <!-- Row 1: Company (Left) & Employee (Right) -->
+                        <!-- Row 1: Company (Left) & Branch (Right) -->
                         <div class="col-12 col-md-6 py-1">
                             <div class="row align-items-center">
                                 <label class="col-3 text-right mb-0" style="padding-right:0;">Company</label>
@@ -187,7 +187,13 @@
                         </div>
 
                         <div class="col-12 col-md-6 py-1">
-                            
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Branch</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <select id="branchSelect" class="form-control form-control-sm gc-multiselect-load-data" multiple></select>
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
                         </div>
 
                         <!-- Row 2: Department (Left) & Designation (Right) -->
@@ -386,6 +392,7 @@
                 baseUrl: '@Url.Action("", "JobCardBulkReport")',
                 load: async function () {
                     bindRemoteMultiselect("#companySelect", "/GcAccessFilter/companies", "Select Company", "company");
+                    bindRemoteMultiselect("#branchSelect", "/GcAccessFilter/branches", "Select Branch", "branch");
                     bindRemoteMultiselect("#departmentSelect", "/GcAccessFilter/departments", "Select Department", "department");
                     bindRemoteMultiselect("#designationSelect", "/GcAccessFilter/designations", "Select Designation", "designation");
                     bindRemoteMultiselect("#employeeSelect", "/GcAccessFilter/employees", "Select Employee", null);

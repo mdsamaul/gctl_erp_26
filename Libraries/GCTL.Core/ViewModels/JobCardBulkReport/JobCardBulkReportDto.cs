@@ -11,6 +11,8 @@ namespace GCTL.Core.ViewModels.JobCardBulkReport
     {
         public string? CompanyCode { get; set; }
         public List<string>? CompanyCodes { get; set; }
+        public string? BranchCode { get; set; }
+        public List<string>? BranchCodes { get; set; }
         public List<string>? DepartmentCodes { get; set; }
         public List<string>? DesignationCodes { get; set; }
         public List<string>? EmployeeIds { get; set; }

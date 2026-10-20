@@ -443,7 +443,7 @@ BEGIN
                 RIGHT('00' + CAST(LateSec / 3600 AS VARCHAR(2)), 2) + ':' +
                 RIGHT('00' + CAST((LateSec % 3600) / 60 AS VARCHAR(2)), 2) + ':' +
                 RIGHT('00' + CAST(LateSec % 60 AS VARCHAR(2)), 2)
-            ELSE '00:00:00'
+            ELSE ''
         END AS Late,
         CASE
             WHEN LastPunch IS NOT NULL AND LastPunchTime <> FirstPunchTime THEN 
@@ -455,12 +455,12 @@ BEGIN
                 RIGHT('00' + CAST(EarlyOutSec / 3600 AS VARCHAR(2)), 2) + ':' +
                 RIGHT('00' + CAST((EarlyOutSec % 3600) / 60 AS VARCHAR(2)), 2) + ':' +
                 RIGHT('00' + CAST(EarlyOutSec % 60 AS VARCHAR(2)), 2)
-            ELSE '00:00:00'
+            ELSE ''
         END AS EarlyOut,
         CASE
             WHEN WorkSec > 0 THEN
                 CAST(ROUND(CAST(WorkSec AS FLOAT) / 3600.0, 2) AS VARCHAR(10))
-            ELSE '0.00'
+            ELSE ''
         END AS WorkHours,
         CASE
             WHEN FirstPunch IS NOT NULL THEN

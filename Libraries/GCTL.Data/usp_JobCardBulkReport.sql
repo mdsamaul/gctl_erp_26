@@ -5,6 +5,7 @@ GO
 
 CREATE OR ALTER PROCEDURE [dbo].[usp_JobCardBulkReport]
     @CompanyCode      VARCHAR(50)   = '',
+    @BranchCodes      NVARCHAR(MAX) = '',
     @DepartmentCodes  NVARCHAR(MAX) = '',
     @DesignationCodes NVARCHAR(MAX) = '',
     @EmployeeIds      NVARCHAR(MAX) = '',
@@ -21,6 +22,7 @@ BEGIN
 
     -- Clean parameters
     SET @CompanyCode      = LTRIM(RTRIM(ISNULL(@CompanyCode, '')));
+    SET @BranchCodes      = LTRIM(RTRIM(ISNULL(@BranchCodes, '')));
     SET @DepartmentCodes  = LTRIM(RTRIM(ISNULL(@DepartmentCodes, '')));
     SET @DesignationCodes = LTRIM(RTRIM(ISNULL(@DesignationCodes, '')));
     SET @EmployeeIds      = LTRIM(RTRIM(ISNULL(@EmployeeIds, '')));
@@ -62,16 +64,25 @@ BEGIN
         SET @IsAdmin = 1;
 
     -- Fast indexed filter tables matching NVARCHAR(50)
-    CREATE TABLE #CompFilter  (Code NVARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
-    CREATE TABLE #DeptFilter  (Code NVARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
-    CREATE TABLE #DesigFilter (Code NVARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
-    CREATE TABLE #EmpFilter   (Code NVARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
+    CREATE TABLE #CompFilter   (Code NVARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
+    CREATE TABLE #BranchFilter (Code NVARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
+    CREATE TABLE #DeptFilter   (Code NVARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
+    CREATE TABLE #DesigFilter  (Code NVARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
+    CREATE TABLE #EmpFilter    (Code NVARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY);
 
     IF @CompanyCode <> ''
     BEGIN
         INSERT INTO #CompFilter (Code)
         SELECT DISTINCT LTRIM(RTRIM([Value]))
         FROM dbo.STRING_SPLIT(',', @CompanyCode)
+        WHERE LTRIM(RTRIM([Value])) <> '';
+    END
+
+    IF @BranchCodes <> ''
+    BEGIN
+        INSERT INTO #BranchFilter (Code)
+        SELECT DISTINCT LTRIM(RTRIM([Value]))
+        FROM dbo.STRING_SPLIT(',', @BranchCodes)
         WHERE LTRIM(RTRIM([Value])) <> '';
     END
 
@@ -151,8 +162,9 @@ BEGIN
     LEFT  JOIN HRM_ATD_Shift s ON s.ShiftCode = oi.ShiftCode AND oi.ShiftCode <> ''
     WHERE (oi.EmployeeStatus = '01' OR oi.EmployeeStatus = 'Active' OR oi.EmployeeStatus = '1' OR oi.EmployeeStatus = '' OR oi.EmployeeStatus IS NULL)
       AND (oi.EmployeeId IS NOT NULL AND oi.EmployeeId <> '')
-      AND (NOT EXISTS (SELECT 1 FROM #CompFilter)  OR oi.CompanyCode IN (SELECT Code FROM #CompFilter))
-      AND (NOT EXISTS (SELECT 1 FROM #DeptFilter)  OR oi.DepartmentCode IN (SELECT Code FROM #DeptFilter))
+      AND (NOT EXISTS (SELECT 1 FROM #CompFilter)   OR oi.CompanyCode IN (SELECT Code FROM #CompFilter))
+      AND (NOT EXISTS (SELECT 1 FROM #BranchFilter) OR oi.BranchCode IN (SELECT Code FROM #BranchFilter))
+      AND (NOT EXISTS (SELECT 1 FROM #DeptFilter)   OR oi.DepartmentCode IN (SELECT Code FROM #DeptFilter))
       AND (NOT EXISTS (SELECT 1 FROM #DesigFilter) OR oi.DesignationCode IN (SELECT Code FROM #DesigFilter))
       AND (NOT EXISTS (SELECT 1 FROM #EmpFilter)   OR e.EmployeeId IN (SELECT Code FROM #EmpFilter))
       AND (
@@ -443,7 +455,7 @@ BEGIN
                 RIGHT('00' + CAST(LateSec / 3600 AS VARCHAR(2)), 2) + ':' +
                 RIGHT('00' + CAST((LateSec % 3600) / 60 AS VARCHAR(2)), 2) + ':' +
                 RIGHT('00' + CAST(LateSec % 60 AS VARCHAR(2)), 2)
-            ELSE '00:00:00'
+            ELSE ''
         END AS Late,
         CASE
             WHEN LastPunch IS NOT NULL AND LastPunchTime <> FirstPunchTime THEN 
@@ -455,12 +467,12 @@ BEGIN
                 RIGHT('00' + CAST(EarlyOutSec / 3600 AS VARCHAR(2)), 2) + ':' +
                 RIGHT('00' + CAST((EarlyOutSec % 3600) / 60 AS VARCHAR(2)), 2) + ':' +
                 RIGHT('00' + CAST(EarlyOutSec % 60 AS VARCHAR(2)), 2)
-            ELSE '00:00:00'
+            ELSE ''
         END AS EarlyOut,
         CASE
             WHEN WorkSec > 0 THEN
                 CAST(ROUND(CAST(WorkSec AS FLOAT) / 3600.0, 2) AS VARCHAR(10))
-            ELSE '0.00'
+            ELSE ''
         END AS WorkHours,
         CASE
             WHEN LeaveCode IS NOT NULL THEN LeaveCode

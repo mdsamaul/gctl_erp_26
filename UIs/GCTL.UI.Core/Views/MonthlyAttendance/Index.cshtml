@@ -1,0 +1,511 @@
+@model GCTL.UI.Core.ViewModels.MonthlyAttendance.MonthlyAttendanceViewModel
+@{
+    Model.Breadcrumb = "MonthlyAttendance";
+    Model.PageTitle = "Monthly Attendance Details Report";
+}
+
+<style>
+    .headerToobar {
+        background: linear-gradient(to right, #fff, #fff);
+        box-shadow: 3px 0 6px rgba(0,0,0,0.2);
+        border-radius: 0px 11px 11px 0px;
+    }
+
+    #btnPreviewPdf, #downloadReport {
+        transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        min-width: 120px;
+        min-height: 25px;
+    }
+
+        #btnPreviewPdf:hover, #downloadReport:hover {
+            background-color: rgba(173, 255, 47, 0.2) !important;
+            color: #1e90ff !important;
+            border-color: #1e90ff !important;
+            box-shadow: 0 4px 10px rgba(30,144,255,0.5) !important;
+        }
+
+        #btnPreviewPdf i, #btnPreviewPdf span,
+        #downloadReport i, #downloadReport span {
+            transition: transform 0.3s ease;
+            display: inline-block;
+        }
+
+        #btnPreviewPdf:hover i, #downloadReport:hover i {
+            transform: scale(1.3);
+        }
+
+    /* multiselect */
+    .dropdown-wrapper .btn-group {
+        width: 100% !important;
+        display: block !important;
+    }
+
+    .dropdown-wrapper .multiselect {
+        width: 100% !important;
+        border: 1px solid #ced4da !important;
+        border-radius: 4px !important;
+        background-color: #fff !important;
+        padding: 6px 8px !important;
+        font-size: 13px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        cursor: pointer !important;
+    }
+
+    .multiselect-container.dropdown-menu {
+        border-radius: 4px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        font-size: 13px;
+        margin-top: 1px !important;
+        max-height: 250px !important;
+        overflow-y: auto !important;
+        width: 100% !important;
+    }
+
+    .form-check-inline {
+        margin-right: 15px;
+    }
+
+    #pdf-preview-container, #grid-preview-container {
+        border: 1px solid #ccc;
+        padding: 4px;
+        background: #fff;
+    }
+
+    .disabled-control {
+        background-color: #e9ecef !important;
+        cursor: not-allowed !important;
+        opacity: 0.75;
+    }
+
+    /* Matrix preview table styling matching MonthlyAttendance (9).xlsx */
+    .monthly-att-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-family: Calibri, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 11px;
+    }
+
+        .monthly-att-table th, .monthly-att-table td {
+            border: 1px solid #c0c0c0;
+            padding: 3px 4px;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .monthly-att-table th.header-cell {
+            background-color: #D9EAD3 !important;
+            color: #000;
+            font-weight: bold;
+            font-size: 10.5px;
+        }
+
+        .monthly-att-table tr.dept-header-row td {
+            background-color: #f8fafc;
+            font-size: 13px;
+            font-weight: bold;
+            text-align: left;
+            padding: 6px 10px;
+            border-top: 2px solid #94a3b8;
+            border-bottom: 1.5px solid #94a3b8;
+            color: #0f172a;
+        }
+
+        .monthly-att-table tr.dept-subtotal-row td {
+            background-color: #EFEFEF !important;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+    .status-cell-p { background-color: #C6EFCE !important; color: #000; }
+    .status-cell-w { background-color: #D9EAD3 !important; color: #000; }
+    .status-cell-l { background-color: #FFFF2CC !important; color: #000; }
+    .status-cell-a { background-color: #F4CCCC !important; color: #000; }
+    .status-cell-h { background-color: #D9EAD3 !important; color: #000; }
+
+    @@media (min-width: 1200px) and (max-width: 1400px) {
+        .dropdown-wrapper .multiselect {
+            padding: 3px 6px !important;
+            font-size: 12px !important;
+        }
+
+        .multiselect-container.dropdown-menu {
+            font-size: 12px;
+        }
+
+        label.col-3.text-right {
+            font-size: 13px;
+            padding-right: 2px !important;
+        }
+
+        .row.align-items-center > label.col-3 {
+            flex: 0 0 25%;
+            max-width: 25%;
+        }
+
+        .row.align-items-center > .col-9.col-md-7 {
+            flex: 0 0 70%;
+            max-width: 70%;
+            padding-left: 4px !important;
+        }
+
+        .row.align-items-center > .col-md-2,
+        .row.align-items-center > .col-md-1 {
+            flex: 0 0 10%;
+            max-width: 10%;
+        }
+
+        .form-control.form-control-sm {
+            font-size: 12px;
+            padding: 3px 6px;
+            height: calc(1.4em + 0.5rem + 2px);
+        }
+
+        #btnPreviewPdf, #downloadReport {
+            min-width: 90px;
+            min-height: 28px;
+            font-size: 11px;
+            padding: 2px 6px;
+        }
+
+        h6.pt-3.px-3.pb-0,
+        h6.pt-2.px-3.pb-0 {
+            font-size: 14px;
+            padding-top: 8px !important;
+        }
+
+        .export-text {
+            font-size: 12px !important;
+        }
+
+        .right-btn-margin {
+            margin-right: -27px !important;
+        }
+    }
+
+    @@media (min-width: 1401px) {
+        .right-btn-margin {
+            margin-right: 0px !important;
+        }
+    }
+</style>
+
+<!-- Page Header -->
+<div class="container-fluid">
+    <partial name="_PageHeader" model="Model" />
+</div>
+
+<input type="hidden" id="hdnAccessCode" value="@(ViewBag.AccessCode ?? "")" />
+
+<section class="content consistent-look mx-2">
+    <div class="card border">
+
+        <!-- Toolbar -->
+        <div class="card-header">
+            <partial name="_Toolbars"
+                     model="new ToobarModel() { Title = Model.Breadcrumb, Code = Model.Code, Name = Model.Setup.CompanyCode }" />
+        </div>
+
+        <!-- Filter Panel -->
+        <div class="card-body border">
+            <div>
+
+                <!-- Search By Section -->
+                <div class="col-12 col-md-5">
+                    <h6 class="pt-3 px-3 pb-0 font-weight-bold fs-6 mb-0">Search By:</h6>
+                    <div class="d-flex"><hr class="m-0 p-0 w-100"></div>
+                </div>
+
+                <div class="col-12 col-md-11 mx-auto dropdown-wrapper">
+                    <div class="row pb-2">
+
+                        <!-- Row 1: Company (Left) & Branch (Right) -->
+                        <div class="col-12 col-md-6 py-1">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Company</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <select id="companySelect" class="form-control form-control-sm gc-multiselect-load-data" multiple></select>
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 py-1">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Branch</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <select id="branchSelect" class="form-control form-control-sm gc-multiselect-load-data" multiple></select>
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                        <!-- Row 2: Department (Left) & Employment Nature (Right) -->
+                        <div class="col-12 col-md-6 py-1">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Department</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <select id="departmentSelect" class="form-control form-control-sm gc-multiselect-load-data" multiple></select>
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 py-1">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Designation</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <select id="designationSelect" class="form-control form-control-sm gc-multiselect-load-data" multiple></select>
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 py-1">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Employment Nature</label>
+                                <div class="col-9 col-md-7 dropdown-wrapper" style="padding-left:5px;">
+                                    <select id="employmentNatureSelect" class="form-control form-control-sm gc-multiselect" multiple data-placeholder="Select Employment Nature" asp-items="ViewBag.EmploymentNatureList as SelectList"></select>
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                        <!-- Row 3: Employee (Left) & Designation (Right) -->
+                        <div class="col-12 col-md-6 py-1">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Employee</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <select id="employeeSelect" class="form-control form-control-sm gc-multiselect-load-data" multiple></select>
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                        
+
+                        <!-- Row 4: Duration Selected (Above From Date/To Date) -->
+                        <div class="col-12 col-md-6 py-1">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Duration Selected</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <div class="d-flex align-items-center">
+                                        <div class="form-check form-check-inline mb-0">
+                                            <input class="form-check-input" type="radio" name="durationRadio" id="byDate" value="ByDate" checked>
+                                            <label class="form-check-label font-weight-normal" for="byDate">By Date</label>
+                                        </div>
+                                        <div class="form-check form-check-inline mb-0">
+                                            <input class="form-check-input" type="radio" name="durationRadio" id="byMonth" value="ByMonth">
+                                            <label class="form-check-label font-weight-normal" for="byMonth">By Month</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 py-1"></div>
+
+                        <!-- Row 5: From Date (Left) & To Date (Right) -->
+                        <div class="col-12 col-md-6 py-1 date-range-group">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">From Date</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <input type="text" id="fromDateSelect"
+                                           class="form-control form-control-sm"
+                                           placeholder="dd/MM/yyyy" />
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 py-1 date-range-group">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">To Date</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <input type="text" id="toDateSelect"
+                                           class="form-control form-control-sm"
+                                           placeholder="dd/MM/yyyy" />
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                        <!-- Row 6: Month (Left) & Year (Right) -->
+                        <div class="col-12 col-md-6 py-1 month-year-group">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Month</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <select id="monthSelect" class="form-control form-control-sm" asp-items="ViewBag.MonthList as SelectList">
+                                        <option value="">Select Month</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 py-1 month-year-group">
+                            <div class="row align-items-center">
+                                <label class="col-3 text-right mb-0" style="padding-right:0;">Year</label>
+                                <div class="col-9 col-md-7" style="padding-left:5px;">
+                                    <input type="number" id="yearSelect"
+                                           class="form-control form-control-sm"
+                                           value="@DateTime.Now.Year"
+                                           min="2000" max="2100" />
+                                </div>
+                                <div class="col-md-2 col-0"></div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Report Option Section -->
+                <div class="col-12 col-md-5">
+                    <h6 class="pt-2 px-3 pb-0 font-weight-bold fs-6 mb-0">Report Option:</h6>
+                    <div class="d-flex"><hr class="m-0 p-0 w-100"></div>
+                </div>
+
+                <div class="col-12 col-md-12 mx-auto">
+                    <div class="row pb-3">
+                        <div class="col-12 col-md-11 mx-auto dropdown-wrapper">
+                            <div class="row pb-2">
+
+                                <!-- Export Format: Default PDF selected -->
+                                <div class="col-12 col-md-6 py-1">
+                                    <div class="row align-items-center">
+                                        <label class="col-3 text-right mb-0 export-text px-0" style="padding-right:0;">Export Report Format</label>
+                                        <div class="col-9 col-md-7" style="padding-left:5px;">
+                                            <select id="reportFormatSelect" class="form-control form-control-sm">
+                                                <option value="downloadPdf" selected>PDF</option>
+                                                <option value="downloadExcel">Excel</option>
+                                                <option value="downloadCsv">CSV</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 col-0"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Action Buttons: Export Report & Preview with identical button design -->
+                                <div class="col-12 col-md-6 py-1">
+                                    <div class="row justify-content-end align-items-center right-btn-margin">
+                                        <div class="px-1">
+                                            <button id="downloadReport" class="btn btn-sm common-btn btn-outline-secondary">
+                                                <i class="fas fa-print"></i>
+                                                <span>Report Export</span>
+                                            </button>
+                                        </div>
+                                        <div class="pl-1 pr-0">
+                                            <button id="btnPreviewPdf" class="btn btn-sm btn-outline-secondary common-btn px-4">
+                                                <i class="fas fa-print" title="Preview"></i>
+                                                <span>Preview</span>
+                                            </button>
+                                        </div>
+                                        <div class="col-md-2"></div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Preview Section -->
+        <div class="container-fluid mt-3 mb-4" id="previewWrapper" style="display:none;">
+            <!-- Preview Controls Tab Bar -->
+            <div class="d-flex justify-content-between align-items-center mb-2 px-2">
+                <ul class="nav nav-pills" id="previewTabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active py-1 px-3" id="tab-pdf" data-toggle="pill" href="#pdfPane" role="tab" style="font-size:12px;">
+                            <i class="fas fa-file-pdf mr-1 text-danger"></i> PDF Document Preview
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link py-1 px-3 ml-2" id="tab-grid" data-toggle="pill" href="#gridPane" role="tab" style="font-size:12px;">
+                            <i class="fas fa-table mr-1 text-success"></i> Table Matrix Preview
+                        </a>
+                    </li>
+                </ul>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary" id="btnFullscreenPreview" title="Toggle Fullscreen">
+                        <i class="fas fa-expand"></i> Fullscreen
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary ml-1" id="btnClosePreview" title="Close Preview">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+
+            <div class="tab-content" id="previewTabContent">
+                <!-- PDF Preview Tab -->
+                <div class="tab-pane fade show active" id="pdfPane" role="tabpanel">
+                    <div id="pdf-preview-container"
+                         style="width:100%; height:90vh; border:1px solid #ccc;
+                         border-radius:5px; box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+                    </div>
+                </div>
+
+                <!-- Interactive Grid Preview Tab -->
+                <div class="tab-pane fade" id="gridPane" role="tabpanel">
+                    <div id="grid-preview-container"
+                         style="width:100%; max-height:85vh; overflow:auto; border:1px solid #ccc;
+                         border-radius:5px; box-shadow:0 2px 10px rgba(0,0,0,0.1); background:#fff; padding:15px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/1.1.2/css/bootstrap-multiselect.min.css">
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/1.1.2/js/bootstrap-multiselect.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    <script src="~/js/pages/MonthlyAttendance.js"></script>
+
+    <script type="text/javascript">
+        $(function () {
+            $.monthlyAttendance({
+                baseUrl: '@Url.Action("", "MonthlyAttendance")',
+                load: async function () {
+                    bindRemoteMultiselect("#companySelect", "/GcAccessFilter/companies", "Select Company", "company");
+                    bindRemoteMultiselect("#branchSelect", "/GcAccessFilter/branches", "Select Branch", "branch");
+                    bindRemoteMultiselect("#departmentSelect", "/GcAccessFilter/departments", "Select Department", "department");
+                    bindRemoteMultiselect("#designationSelect", "/GcAccessFilter/designations", "Select Designation", "designation");
+                    bindRemoteMultiselect("#employeeSelect", "/GcAccessFilter/employees", "Select Employee", null);
+
+                    var accessCode = $("#hdnAccessCode").val();
+                    var isReadonly = accessCode === "0005";
+
+                    ms_BindCascade();
+
+                    if (isReadonly) {
+                        ms_InitializeMultiselects(null, null, true);
+                        await ms_ApplyAccessCodeToAll(accessCode);
+                    } else {
+                        ms_InitializeMultiselects();
+                        ms_Reset("#companySelect");
+                        await ms_LoadNext("#companySelect", "...");
+                        await ms_AutoSelectCompany("001");
+                    }
+                }
+            });
+        });
+    </script>
+}
