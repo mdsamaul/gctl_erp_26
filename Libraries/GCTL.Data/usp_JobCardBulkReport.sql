@@ -3,7 +3,11 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
-CREATE OR ALTER PROCEDURE [dbo].[usp_JobCardBulkReport]
+IF OBJECT_ID('dbo.usp_JobCardBulkReport', 'P') IS NULL
+    EXEC('CREATE PROCEDURE [dbo].[usp_JobCardBulkReport] AS SET NOCOUNT ON;');
+GO
+
+ALTER PROCEDURE [dbo].[usp_JobCardBulkReport]
     @CompanyCode      VARCHAR(50)   = '',
     @BranchCodes      NVARCHAR(MAX) = '',
     @DepartmentCodes  NVARCHAR(MAX) = '',
@@ -110,6 +114,41 @@ BEGIN
         WHERE LTRIM(RTRIM([Value])) <> '';
     END
 
+    -- Pre-compute Shift Lookup once (only 2-5 rows) for O(1) join speed
+    CREATE TABLE #ShiftLookup (
+        ShiftCode    NVARCHAR(50)  COLLATE DATABASE_DEFAULT PRIMARY KEY,
+        ShiftDisplay NVARCHAR(200) COLLATE DATABASE_DEFAULT,
+        ShiftStart   TIME(0),
+        ShiftEnd     TIME(0),
+        LateCutoff   TIME(0)
+    );
+
+    INSERT INTO #ShiftLookup (ShiftCode, ShiftDisplay, ShiftStart, ShiftEnd, LateCutoff)
+    SELECT
+        sh.ShiftCode,
+        CASE
+            WHEN sd.ShiftStartTime IS NOT NULL AND sd.ShiftEndTime IS NOT NULL THEN
+                (CASE
+                    WHEN LEN(ISNULL(sh.ShiftName,'')) BETWEEN 1 AND 5 THEN sh.ShiftName
+                    WHEN LEN(ISNULL(sh.ShiftShortName,'')) BETWEEN 1 AND 5 THEN sh.ShiftShortName
+                    ELSE ISNULL(NULLIF(sh.ShiftName,''), 'G')
+                 END) + '(' +
+                SUBSTRING(CONVERT(VARCHAR(8), sd.ShiftStartTime, 108), 1, 5) + '-' +
+                SUBSTRING(CONVERT(VARCHAR(8), sd.ShiftEndTime, 108), 1, 5) + ')'
+            ELSE 'Day(09:00-18:00)'
+        END,
+        ISNULL(CAST(sd.ShiftStartTime AS TIME(0)), CAST('09:00:00' AS TIME(0))),
+        ISNULL(CAST(sd.ShiftEndTime AS TIME(0)), CAST('18:00:00' AS TIME(0))),
+        ISNULL(CAST(sd.LateTime AS TIME(0)), CAST('09:15:00' AS TIME(0)))
+    FROM dbo.HRM_ATD_Shift sh WITH (NOLOCK)
+    OUTER APPLY (
+        SELECT TOP 1 d.ShiftStartTime, d.ShiftEndTime, d.LateTime
+        FROM dbo.HRM_ATD_ShiftDetails d WITH (NOLOCK)
+        WHERE d.ShiftCode = sh.ShiftCode
+        ORDER BY ISNULL(d.IsActive, 1) DESC, d.AutoId ASC
+    ) sd
+    WHERE sh.ShiftCode IS NOT NULL AND sh.ShiftCode <> '';
+
     -- Active Employees (Target group filtered early for maximum performance)
     CREATE TABLE #ActiveEmployees (
         EmployeeId      NVARCHAR(50)   COLLATE DATABASE_DEFAULT PRIMARY KEY,
@@ -139,34 +178,28 @@ BEGIN
         ISNULL(LTRIM(RTRIM(oi.AttendenceId)), ''),
         ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(e.FirstName,'') + ' ' + ISNULL(e.LastName,''))), ''), ISNULL(e.EmployeeId, '')),
         ISNULL(oi.DesignationCode, ''),
-        ISNULL(NULLIF(desig.DesignationName, ''), ISNULL(NULLIF(oi.DesignationCode, ''), '—')),
+        ISNULL(NULLIF(desig.DesignationName, ''), ISNULL(NULLIF(oi.DesignationCode, ''), '-')),
         ISNULL(oi.DepartmentCode, ''),
         ISNULL(NULLIF(dept.DepartmentName, ''), ISNULL(NULLIF(oi.DepartmentCode, ''), 'General Department')),
         ISNULL(oi.CompanyCode, ''),
         ISNULL(comp.CompanyName, 'DataPath Ltd.'),
-        CASE
-            WHEN s.ShiftCode IS NOT NULL AND s.ShiftStartTime IS NOT NULL AND s.ShiftEndTime IS NOT NULL THEN
-                ISNULL(NULLIF(s.ShiftName,''), 'G') + '(' + 
-                SUBSTRING(CONVERT(VARCHAR(8), s.ShiftStartTime, 108), 1, 5) + '-' +
-                SUBSTRING(CONVERT(VARCHAR(8), s.ShiftEndTime, 108), 1, 5) + ')'
-            ELSE 'Day(09:00-18:00)'
-        END,
-        ISNULL(CAST(s.ShiftStartTime AS TIME(0)), CAST('09:00:00' AS TIME(0))),
-        ISNULL(CAST(s.ShiftEndTime AS TIME(0)), CAST('18:00:00' AS TIME(0))),
-        ISNULL(CAST(s.LateTime AS TIME(0)), CAST('09:15:00' AS TIME(0)))
-    FROM HRM_Employee e
-    INNER JOIN HRM_EmployeeOfficialInfo oi ON oi.EmployeeId = e.EmployeeId
-    LEFT  JOIN Core_Company comp ON comp.CompanyCode = oi.CompanyCode AND oi.CompanyCode <> ''
-    LEFT  JOIN HRM_Def_Department dept ON dept.DepartmentCode = oi.DepartmentCode AND oi.DepartmentCode <> ''
-    LEFT  JOIN HRM_Def_Designation desig ON desig.DesignationCode = oi.DesignationCode AND oi.DesignationCode <> ''
-    LEFT  JOIN HRM_ATD_Shift s ON s.ShiftCode = oi.ShiftCode AND oi.ShiftCode <> ''
+        ISNULL(s.ShiftDisplay, 'Day(09:00-18:00)'),
+        ISNULL(s.ShiftStart, CAST('09:00:00' AS TIME(0))),
+        ISNULL(s.ShiftEnd, CAST('18:00:00' AS TIME(0))),
+        ISNULL(s.LateCutoff, CAST('09:15:00' AS TIME(0)))
+    FROM HRM_Employee e WITH (NOLOCK)
+    INNER JOIN HRM_EmployeeOfficialInfo oi WITH (NOLOCK) ON oi.EmployeeId = e.EmployeeId
+    LEFT  JOIN Core_Company comp WITH (NOLOCK) ON comp.CompanyCode = oi.CompanyCode AND oi.CompanyCode <> ''
+    LEFT  JOIN HRM_Def_Department dept WITH (NOLOCK) ON dept.DepartmentCode = oi.DepartmentCode AND oi.DepartmentCode <> ''
+    LEFT  JOIN HRM_Def_Designation desig WITH (NOLOCK) ON desig.DesignationCode = oi.DesignationCode AND oi.DesignationCode <> ''
+    LEFT  JOIN #ShiftLookup s ON s.ShiftCode = oi.ShiftCode AND oi.ShiftCode <> ''
     WHERE (oi.EmployeeStatus = '01' OR oi.EmployeeStatus = 'Active' OR oi.EmployeeStatus = '1' OR oi.EmployeeStatus = '' OR oi.EmployeeStatus IS NULL)
       AND (oi.EmployeeId IS NOT NULL AND oi.EmployeeId <> '')
       AND (NOT EXISTS (SELECT 1 FROM #CompFilter)   OR oi.CompanyCode IN (SELECT Code FROM #CompFilter))
       AND (NOT EXISTS (SELECT 1 FROM #BranchFilter) OR oi.BranchCode IN (SELECT Code FROM #BranchFilter))
       AND (NOT EXISTS (SELECT 1 FROM #DeptFilter)   OR oi.DepartmentCode IN (SELECT Code FROM #DeptFilter))
-      AND (NOT EXISTS (SELECT 1 FROM #DesigFilter) OR oi.DesignationCode IN (SELECT Code FROM #DesigFilter))
-      AND (NOT EXISTS (SELECT 1 FROM #EmpFilter)   OR e.EmployeeId IN (SELECT Code FROM #EmpFilter))
+      AND (NOT EXISTS (SELECT 1 FROM #DesigFilter)  OR oi.DesignationCode IN (SELECT Code FROM #DesigFilter))
+      AND (NOT EXISTS (SELECT 1 FROM #EmpFilter)    OR e.EmployeeId IN (SELECT Code FROM #EmpFilter))
       AND (
             @IsAdmin = 1
             OR (
@@ -181,16 +214,19 @@ BEGIN
           )
       AND (oi.JoiningDate IS NULL OR oi.JoiningDate = '1900-01-01' OR CONVERT(DATE, oi.JoiningDate) <= @ToDate);
 
+    CREATE NONCLUSTERED INDEX IX_ActiveEmp_Dept_Emp ON #ActiveEmployees (DepartmentName, EmployeeId);
+
     -- Fingerprints mapping for 100% direct indexed equality joins to MachineData
     CREATE TABLE #EmpFingerprints (
-        FingerPrintId NVARCHAR(50) COLLATE DATABASE_DEFAULT PRIMARY KEY,
-        EmployeeId    NVARCHAR(50) COLLATE DATABASE_DEFAULT
+        FingerPrintId NVARCHAR(50) COLLATE DATABASE_DEFAULT,
+        EmployeeId    NVARCHAR(50) COLLATE DATABASE_DEFAULT,
+        PRIMARY KEY (FingerPrintId, EmployeeId)
     );
 
     INSERT INTO #EmpFingerprints (FingerPrintId, EmployeeId)
-    SELECT EmployeeId, EmployeeId FROM #ActiveEmployees WHERE EmployeeId <> ''
+    SELECT DISTINCT EmployeeId, EmployeeId FROM #ActiveEmployees WHERE EmployeeId <> ''
     UNION
-    SELECT AttendenceId, EmployeeId FROM #ActiveEmployees WHERE AttendenceId <> '';
+    SELECT DISTINCT AttendenceId, EmployeeId FROM #ActiveEmployees WHERE AttendenceId <> '';
 
     -- Fast Date Series
     CREATE TABLE #Dates ([Date] DATE PRIMARY KEY);
@@ -207,62 +243,72 @@ BEGIN
     FROM DateSeries
     OPTION (MAXRECURSION 0);
 
-    -- Punches (Machine + Manual unified with direct index seek)
+    -- Punches (Machine + Manual unified with SARGable index seek)
     CREATE TABLE #Punches (
-        EmployeeId    NVARCHAR(50)   COLLATE DATABASE_DEFAULT,
+        EmployeeId    NVARCHAR(50)  COLLATE DATABASE_DEFAULT,
         PunchDate     DATE,
         FirstPunch    DATETIME,
         LastPunch     DATETIME,
-        ManualRemarks NVARCHAR(1000) COLLATE DATABASE_DEFAULT,
+        ManualRemarks NVARCHAR(500) COLLATE DATABASE_DEFAULT,
         PRIMARY KEY (EmployeeId, PunchDate)
     );
 
-    -- Step 1: Aggregate Machine Data using indexed join
-    INSERT INTO #Punches (EmployeeId, PunchDate, FirstPunch, LastPunch, ManualRemarks)
-    SELECT
-        fp.EmployeeId,
-        CONVERT(DATE, md.[Date]) AS PunchDate,
-        MIN(md.[Time]) AS FirstPunch,
-        MAX(md.[Time]) AS LastPunch,
-        ''
-    FROM HRM_ATD_MachineData md
-    INNER JOIN #EmpFingerprints fp ON fp.FingerPrintId = md.FingerPrintID
-    WHERE md.[Date] >= @FromDateTime AND md.[Date] < @NextToDateTime
-      AND md.[Time] IS NOT NULL AND md.[Time] <> '1900-01-01'
-    GROUP BY fp.EmployeeId, CONVERT(DATE, md.[Date]);
-
-    -- Step 2: Merge Manual Entry Data
-    ;WITH ManualAgg AS (
+    ;WITH RawMachine AS (
         SELECT 
-            m.EmployeeId,
+            ef.EmployeeId,
+            CONVERT(DATE, md.[Date]) AS PunchDate,
+            MIN(md.[Time]) AS FirstPunch,
+            MAX(md.[Time]) AS LastPunch
+        FROM HRM_ATD_MachineData md WITH (NOLOCK)
+        INNER JOIN #EmpFingerprints ef ON md.FingerPrintId = ef.FingerPrintId
+        WHERE md.[Date] >= @FromDateTime AND md.[Date] < @NextToDateTime
+          AND md.[Time] IS NOT NULL AND md.[Time] <> '1900-01-01'
+        GROUP BY ef.EmployeeId, CONVERT(DATE, md.[Date])
+    ),
+    RawManual AS (
+        SELECT 
+            ae.EmployeeId,
             CONVERT(DATE, m.[Date]) AS PunchDate,
             MIN(m.[Time]) AS FirstPunch,
             MAX(m.[Time]) AS LastPunch,
             MAX(ISNULL(m.Remarks, '')) AS ManualRemarks
-        FROM HRM_ATD_Manual m
+        FROM HRM_ATD_Manual m WITH (NOLOCK)
         INNER JOIN #ActiveEmployees ae ON ae.EmployeeId = m.EmployeeId
         WHERE m.[Date] >= @FromDateTime AND m.[Date] < @NextToDateTime
           AND m.[Time] IS NOT NULL AND m.[Time] <> '1900-01-01'
-        GROUP BY m.EmployeeId, CONVERT(DATE, m.[Date])
+        GROUP BY ae.EmployeeId, CONVERT(DATE, m.[Date])
+    ),
+    CombinedPunches AS (
+        SELECT
+            COALESCE(rm.EmployeeId, rman.EmployeeId) AS EmployeeId,
+            COALESCE(rm.PunchDate, rman.PunchDate)   AS PunchDate,
+            CASE
+                WHEN rm.FirstPunch IS NULL THEN rman.FirstPunch
+                WHEN rman.FirstPunch IS NULL THEN rm.FirstPunch
+                WHEN rm.FirstPunch <= rman.FirstPunch THEN rm.FirstPunch
+                ELSE rman.FirstPunch
+            END AS FirstPunch,
+            CASE
+                WHEN rm.LastPunch IS NULL THEN rman.LastPunch
+                WHEN rman.LastPunch IS NULL THEN rm.LastPunch
+                WHEN rm.LastPunch >= rman.LastPunch THEN rm.LastPunch
+                ELSE rman.LastPunch
+            END AS LastPunch,
+            rman.ManualRemarks
+        FROM RawMachine rm
+        FULL OUTER JOIN RawManual rman 
+            ON rm.EmployeeId = rman.EmployeeId AND rm.PunchDate = rman.PunchDate
     )
-    MERGE #Punches AS tgt
-    USING ManualAgg AS src
-       ON (tgt.EmployeeId = src.EmployeeId AND tgt.PunchDate = src.PunchDate)
-    WHEN MATCHED THEN
-        UPDATE SET 
-            tgt.FirstPunch = CASE WHEN src.FirstPunch < tgt.FirstPunch THEN src.FirstPunch ELSE tgt.FirstPunch END,
-            tgt.LastPunch  = CASE WHEN src.LastPunch > tgt.LastPunch THEN src.LastPunch ELSE tgt.LastPunch END,
-            tgt.ManualRemarks = src.ManualRemarks
-    WHEN NOT MATCHED THEN
-        INSERT (EmployeeId, PunchDate, FirstPunch, LastPunch, ManualRemarks)
-        VALUES (src.EmployeeId, src.PunchDate, src.FirstPunch, src.LastPunch, src.ManualRemarks);
+    INSERT INTO #Punches (EmployeeId, PunchDate, FirstPunch, LastPunch, ManualRemarks)
+    SELECT EmployeeId, PunchDate, FirstPunch, LastPunch, ManualRemarks
+    FROM CombinedPunches;
 
     -- Leaves (filtered to target date range)
     CREATE TABLE #EmpLeaves (
-        EmployeeId NVARCHAR(50)   COLLATE DATABASE_DEFAULT,
+        EmployeeId NVARCHAR(50)  COLLATE DATABASE_DEFAULT,
         LeaveDate  DATE,
-        LeaveCode  NVARCHAR(50)   COLLATE DATABASE_DEFAULT,
-        Reason     NVARCHAR(1000) COLLATE DATABASE_DEFAULT,
+        LeaveCode  NVARCHAR(20)  COLLATE DATABASE_DEFAULT,
+        Reason     NVARCHAR(500) COLLATE DATABASE_DEFAULT,
         PRIMARY KEY (EmployeeId, LeaveDate)
     );
 
@@ -272,10 +318,10 @@ BEGIN
             d.[Date] AS LeaveDate,
             ISNULL(NULLIF(lt.ShortName, ''), 'L') AS LeaveCode,
             ISNULL(NULLIF(LTRIM(RTRIM(la.Reason)), ''), '') AS Reason
-        FROM HRM_LeaveApplicationEntry la
+        FROM HRM_LeaveApplicationEntry la WITH (NOLOCK)
         INNER JOIN #ActiveEmployees ae ON ae.EmployeeId = la.EmployeeId
         INNER JOIN #Dates d ON d.[Date] >= CONVERT(DATE, la.StartDate) AND d.[Date] <= CONVERT(DATE, la.EndDate)
-        LEFT  JOIN HRM_ATD_LeaveType lt ON lt.LeaveTypeCode = la.LeaveTypeId
+        LEFT  JOIN HRM_ATD_LeaveType lt WITH (NOLOCK) ON lt.LeaveTypeCode = la.LeaveTypeId
         WHERE la.StartDate < @NextToDateTime AND la.EndDate >= @FromDateTime
           AND (la.IsApproved IN ('Y','Approved') OR la.HODApprovalStatus IN ('Y','Approved') OR la.HRApprovalStatus IN ('Y','Approved'))
     )
@@ -284,30 +330,34 @@ BEGIN
     FROM ApprovedLeaves
     GROUP BY EmployeeId, LeaveDate;
 
-    -- Holidays (filtered to target date range)
+    -- Holidays (only within target date range)
     CREATE TABLE #Holidays (
         HolidayDate DATE PRIMARY KEY,
         HolidayName NVARCHAR(200) COLLATE DATABASE_DEFAULT
     );
 
     INSERT INTO #Holidays (HolidayDate, HolidayName)
-    VALUES 
-        ('2026-01-01', 'New Year''s Day'),
-        ('2026-02-21', 'International Mother Language Day'),
-        ('2026-03-19', 'Holiday'),
-        ('2026-03-20', 'Holiday'),
-        ('2026-03-26', 'Independence Day'),
-        ('2026-04-14', 'Bengali New Year'),
-        ('2026-05-01', 'May Day'),
-        ('2026-12-16', 'Victory Day'),
-        ('2026-12-25', 'Christmas Day');
+    SELECT v.HolidayDate, v.HolidayName
+    FROM (VALUES 
+        (CAST('2026-01-01' AS DATE), N'New Year''s Day'),
+        (CAST('2026-02-21' AS DATE), N'International Mother Language Day'),
+        (CAST('2026-03-19' AS DATE), N'Holiday'),
+        (CAST('2026-03-20' AS DATE), N'Holiday'),
+        (CAST('2026-03-26' AS DATE), N'Independence Day'),
+        (CAST('2026-04-14' AS DATE), N'Bengali New Year'),
+        (CAST('2026-05-01' AS DATE), N'May Day'),
+        (CAST('2026-12-16' AS DATE), N'Victory Day'),
+        (CAST('2026-12-25' AS DATE), N'Christmas Day')
+    ) v(HolidayDate, HolidayName)
+    WHERE v.HolidayDate >= @FromDate AND v.HolidayDate <= @ToDate;
 
     INSERT INTO #Holidays (HolidayDate, HolidayName)
-    SELECT DISTINCT d.[Date], ISNULL(NULLIF(h.HolidayName, ''), 'Holiday')
+    SELECT d.[Date], MAX(ISNULL(NULLIF(h.HolidayName, ''), 'Holiday'))
     FROM #Dates d
-    INNER JOIN HRM_ATD_Holiday h ON d.[Date] >= CONVERT(DATE, h.FromDate) AND d.[Date] <= CONVERT(DATE, h.ToDate)
-    WHERE h.FromDate < @NextToDate AND h.ToDate >= @FromDate
-      AND NOT EXISTS (SELECT 1 FROM #Holidays WHERE HolidayDate = d.[Date]);
+    INNER JOIN HRM_ATD_Holiday h WITH (NOLOCK) ON d.[Date] >= CONVERT(DATE, h.FromDate) AND d.[Date] <= CONVERT(DATE, h.ToDate)
+    WHERE h.FromDate < @NextToDateTime AND h.ToDate >= @FromDateTime
+      AND NOT EXISTS (SELECT 1 FROM #Holidays WHERE HolidayDate = d.[Date])
+    GROUP BY d.[Date];
 
     -- Weekends (filtered to target date range)
     CREATE TABLE #EmpWeekends (
@@ -318,7 +368,7 @@ BEGIN
 
     INSERT INTO #EmpWeekends (EmployeeId, WeekendDate)
     SELECT DISTINCT ewd.EmployeeId, CONVERT(DATE, ewd.[Date])
-    FROM HRM_EmployeeWeekendDeclaration ewd
+    FROM HRM_EmployeeWeekendDeclaration ewd WITH (NOLOCK)
     INNER JOIN #ActiveEmployees ae ON ae.EmployeeId = ewd.EmployeeId
     INNER JOIN #Dates d ON d.[Date] = CONVERT(DATE, ewd.[Date])
     WHERE ewd.[Date] >= @FromDateTime AND ewd.[Date] < @NextToDateTime;
@@ -339,17 +389,15 @@ BEGIN
     SELECT 
         rse.EmployeeId,
         CONVERT(DATE, rse.[Date]),
-        ISNULL(NULLIF(s.ShiftName,''), 'G') + '(' + 
-        SUBSTRING(CONVERT(VARCHAR(8), s.ShiftStartTime, 108), 1, 5) + '-' +
-        SUBSTRING(CONVERT(VARCHAR(8), s.ShiftEndTime, 108), 1, 5) + ')',
-        CAST(s.ShiftStartTime AS TIME(0)),
-        CAST(s.ShiftEndTime AS TIME(0)),
-        CAST(s.LateTime AS TIME(0)),
+        ISNULL(s.ShiftDisplay, 'Day(09:00-18:00)'),
+        ISNULL(s.ShiftStart, CAST('09:00:00' AS TIME(0))),
+        ISNULL(s.ShiftEnd, CAST('18:00:00' AS TIME(0))),
+        ISNULL(s.LateCutoff, CAST('09:15:00' AS TIME(0))),
         CASE WHEN rse.Weekend = 'Y' OR rse.Weekend = '1' THEN 1 ELSE 0 END
-    FROM HRM_RosterScheduleEntry rse
+    FROM HRM_RosterScheduleEntry rse WITH (NOLOCK)
     INNER JOIN #ActiveEmployees ae ON ae.EmployeeId = rse.EmployeeId
     INNER JOIN #Dates d ON d.[Date] = CONVERT(DATE, rse.[Date])
-    LEFT JOIN HRM_ATD_Shift s ON s.ShiftCode = rse.ShiftCode
+    LEFT JOIN #ShiftLookup s ON s.ShiftCode = rse.ShiftCode
     WHERE rse.[Date] >= @FromDateTime AND rse.[Date] < @NextToDateTime;
 
     -- Final calculation CTE
@@ -484,7 +532,6 @@ BEGIN
         END AS [Status],
         COALESCE(NULLIF(LeaveReason, ''), NULLIF(ManualRemarks, ''), '') AS Remarks
     FROM SecCalculated
-    -- Grouped by Department: one department finishes, then next department starts
     ORDER BY DepartmentName, EmployeeId, [Date]
     OPTION (RECOMPILE);
 
@@ -497,9 +544,11 @@ BEGIN
 
     -- Cleanup
     DROP TABLE #CompFilter;
+    DROP TABLE #BranchFilter;
     DROP TABLE #DeptFilter;
     DROP TABLE #DesigFilter;
     DROP TABLE #EmpFilter;
+    DROP TABLE #ShiftLookup;
     DROP TABLE #ActiveEmployees;
     DROP TABLE #EmpFingerprints;
     DROP TABLE #Dates;

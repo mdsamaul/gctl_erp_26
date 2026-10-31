@@ -376,8 +376,8 @@
                         body: bodyRows,
                         styles: {
                             font: 'times',
-                            fontSize: 6.5,
-                            cellPadding: { top: 2.2, right: 2, bottom: 2.2, left: 2 },
+                            fontSize: 7.5,
+                            cellPadding: { top: 3.8, right: 2, bottom: 3.8, left: 2 },
                             halign: 'center',
                             valign: 'middle',
                             textColor: [0, 0, 0],
@@ -390,7 +390,8 @@
                             fontStyle: 'bold',
                             halign: 'center',
                             valign: 'middle',
-                            fontSize: 7,
+                            fontSize: 8,
+                            cellPadding: { top: 4, right: 2, bottom: 4, left: 2 },
                             textColor: [0, 0, 0],
                             lineColor: [180, 180, 180],
                             lineWidth: 0.25,
@@ -428,14 +429,17 @@
                         }
                     });
 
-                    // ── Bottom Summary & Stats Section ───────────────────────
+                    // ── Bottom Summary & Stats Section (starts 30px = 22.5pt after table ends) ──
+                    var marginAfterTablePt = 22.5; // 30px bottom margin after 30/31 rows
                     var boxH = 65;
-                    var boxTopY = PH - 135;
+                    var sigBlockReserve = 68; // Reserve for Signatures + Status Legend + Footer on A4
+                    var boxTopY = doc.lastAutoTable.finalY + marginAfterTablePt;
 
-                    if (doc.lastAutoTable.finalY > boxTopY - 10) {
+                    if (boxTopY + boxH > PH - sigBlockReserve) {
                         doc.addPage();
                         drawHeader();
                         drawFooter(doc.internal.getCurrentPageInfo().pageNumber);
+                        boxTopY = 72;
                     }
 
                     // Calculate stats for this employee

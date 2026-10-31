@@ -1,12 +1,117 @@
 @model GCTL.UI.Core.ViewModels.HrmAtdShifts.HrmAtdShiftPageViewModel
+@inject GCTL.Core.Data.IRepository<GCTL.Data.Models.HrmEmployeeOfficialInfo> EmpOfficialRepo
+@inject GCTL.Core.Data.IRepository<GCTL.Data.Models.HrmEmployee> EmpRepo
+@inject GCTL.Core.Data.IRepository<GCTL.Data.Models.CoreBranch> BranchRepo
+@inject GCTL.Core.Data.IRepository<GCTL.Data.Models.HrmDefDepartment> DeptRepo
 @{
     ViewBag.Title = "Shift Setup | HR & Payroll";
     var companies = ViewBag.CompanyList ?? new List<object>();
-    var branches = ViewBag.BranchList ?? new List<object>();
-    var depts = ViewBag.DepartmentList ?? new List<object>();
-    var emps = ViewBag.EmployeeList ?? new List<object>();
     var shiftTypes = ViewBag.ShiftTypeList ?? new List<object>();
     var otRules = ViewBag.OvertimeRuleList ?? new List<object>();
+
+    // Load active employee official mappings (EmployeeStatus == "01" -> Active)
+    var activeOfficialList = EmpOfficialRepo.All()
+        .Where(o => o.EmployeeStatus == "01" || o.EmployeeStatus == "Active")
+        .Select(o => new
+        {
+            empId = (o.EmployeeId ?? "").Trim(),
+            compId = (o.CompanyCode ?? "").Trim(),
+            brId = (o.BranchCode ?? "").Trim(),
+            deptId = (o.DepartmentCode ?? "").Trim()
+        })
+        .ToList();
+
+    var activeOfficialByEmp = activeOfficialList
+        .Where(o => !string.IsNullOrEmpty(o.empId))
+        .GroupBy(o => o.empId, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+    var branchCompMap = activeOfficialList
+        .Where(o => !string.IsNullOrEmpty(o.brId) && !string.IsNullOrEmpty(o.compId))
+        .GroupBy(o => o.brId, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(g => g.Key, g => g.Select(x => x.compId).Distinct().ToList(), StringComparer.OrdinalIgnoreCase);
+
+    var deptCompMap = activeOfficialList
+        .Where(o => !string.IsNullOrEmpty(o.deptId) && !string.IsNullOrEmpty(o.compId))
+        .GroupBy(o => o.deptId, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(g => g.Key, g => g.Select(x => x.compId).Distinct().ToList(), StringComparer.OrdinalIgnoreCase);
+
+    var deptBranchMap = activeOfficialList
+        .Where(o => !string.IsNullOrEmpty(o.deptId) && !string.IsNullOrEmpty(o.brId))
+        .GroupBy(o => o.deptId, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(g => g.Key, g => g.Select(x => x.brId).Distinct().ToList(), StringComparer.OrdinalIgnoreCase);
+
+    var branches = BranchRepo.All()
+        .ToList()
+        .Select(x =>
+        {
+            var bid = (x.BranchCode ?? "").Trim();
+            var compSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(x.CompanyCode)) compSet.Add(x.CompanyCode.Trim());
+            if (branchCompMap.TryGetValue(bid, out var cList))
+            {
+                foreach (var c in cList) compSet.Add(c);
+            }
+            return new
+            {
+                id = bid,
+                name = x.BranchName ?? "",
+                companyCodes = compSet.ToList()
+            };
+        })
+        .OrderBy(x => x.name)
+        .ToList();
+
+    var depts = DeptRepo.All()
+        .ToList()
+        .Select(x =>
+        {
+            var did = (x.DepartmentCode ?? "").Trim();
+            var compSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(x.CompanyCode)) compSet.Add(x.CompanyCode.Trim());
+            if (deptCompMap.TryGetValue(did, out var cList))
+            {
+                foreach (var c in cList) compSet.Add(c);
+            }
+            var brSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (deptBranchMap.TryGetValue(did, out var bList))
+            {
+                foreach (var b in bList) brSet.Add(b);
+            }
+            return new
+            {
+                id = did,
+                name = x.DepartmentName ?? "",
+                companyCodes = compSet.ToList(),
+                branchCodes = brSet.ToList()
+            };
+        })
+        .OrderBy(x => x.name)
+        .ToList();
+
+    var emps = EmpRepo.All()
+        .Select(x => new
+        {
+            id = (x.EmployeeId ?? "").Trim(),
+            firstName = x.FirstName ?? "",
+            lastName = x.LastName ?? ""
+        })
+        .ToList()
+        .Where(x => !string.IsNullOrEmpty(x.id) && activeOfficialByEmp.ContainsKey(x.id))
+        .Select(x =>
+        {
+            activeOfficialByEmp.TryGetValue(x.id, out var off);
+            return new
+            {
+                id = x.id,
+                name = (x.id + " - " + (x.firstName + " " + x.lastName).Trim()).Trim(),
+                companyCode = off?.compId ?? "",
+                branchCode = off?.brId ?? "",
+                deptCode = off?.deptId ?? ""
+            };
+        })
+        .OrderBy(x => x.id)
+        .ToList();
 }
 
 @Html.AntiForgeryToken()
@@ -41,8 +146,6 @@
 }
 
 .wrap {
-    /* max-width: 1500px;
-    margin: 0 auto; */
     padding: 10px 15px 30px;
 }
 
@@ -189,14 +292,14 @@
 /* FILTERS */
 .filters {
     display: grid;
-    grid-template-columns: auto repeat(5, minmax(120px, 1fr)) auto;
+    grid-template-columns: auto repeat(6, minmax(115px, 1fr)) auto;
     gap: 10px;
     align-items: center;
     padding: 12px 14px;
     margin-bottom: 14px;
 }
 
-.filters label {
+.filters > label {
     font-weight: 600;
     color: var(--mu);
     white-space: nowrap;
@@ -247,7 +350,7 @@ table.shift-table th {
     background: #eef2f9;
     color: #374151;
     font-size: 12px;
-    text-transform: uppercase;
+    text-transform: capitalize;
     letter-spacing: .3px;
     text-align: left;
     padding: 10px 8px;
@@ -306,26 +409,112 @@ th.th-sort .th-inner {
     color: #2563eb;
     transform: translateY(1px);
 }
-.sort-arrows .arr-u.active {
-    color: #1d4ed8 !important;
-    font-weight: 900;
-}
+.sort-arrows .arr-u.active,
 .sort-arrows .arr-d.active {
     color: #1d4ed8 !important;
     font-weight: 900;
 }
 
 table.shift-table td {
-    padding: 9px 8px;
+    padding: 10px 8px;
     border-bottom: 1px solid #edf0f6;
     vertical-align: middle;
     font-size: 13px;
 }
 
-table.shift-table tbody tr:hover { background: #f7f9ff; }
+table.shift-table tbody tr.master-row:hover { background: #f7f9ff; }
+table.shift-table tbody tr.master-row.expanded { background: #f0f5ff; }
 .id { font-weight: 700; color: var(--pri); }
 .nm { font-weight: 600; }
 .sub { color: var(--mu); font-size: 11.5px; }
+
+/* EXPAND BUTTON & SUB-TABLE */
+.btn-expand {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #1e3a8a;
+    border-radius: 6px;
+    padding: 4px 9px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.15s ease;
+}
+.btn-expand:hover {
+    background: var(--pri-l);
+    border-color: var(--pri);
+    color: var(--pri);
+}
+.btn-expand.open {
+    background: var(--pri);
+    border-color: var(--pri);
+    color: #fff;
+}
+.btn-expand .exp-icon {
+    display: inline-block;
+    transition: transform 0.18s ease;
+    font-size: 10px;
+}
+.btn-expand.open .exp-icon {
+    transform: rotate(90deg);
+}
+
+tr.detail-expand-row > td {
+    background: #f8fafd;
+    padding: 12px 18px 16px 36px !important;
+    border-bottom: 2px solid #cbd5e1;
+}
+
+.sub-card {
+    background: #fff;
+    border: 1px solid #dbe3f0;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.sub-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    background: #eef3fb;
+    border-bottom: 1px solid #dbe3f0;
+    font-weight: 700;
+    font-size: 12.5px;
+    color: #1e3a8a;
+}
+
+table.detail-sub-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+table.detail-sub-table th {
+    background: #f4f7fc;
+    color: #475569;
+    font-size: 11px;
+    text-transform: capitalize;
+    letter-spacing: 0.3px;
+    padding: 7px 8px;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 700;
+    text-align: left;
+}
+table.detail-sub-table td {
+    padding: 8px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 12.5px;
+    vertical-align: middle;
+}
+table.detail-sub-table tbody tr:last-child td {
+    border-bottom: none;
+}
+table.detail-sub-table tbody tr:hover {
+    background: #f8fbff;
+}
 
 .pill {
     display: inline-block;
@@ -340,6 +529,15 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
 .pill.Active { background: var(--okb); color: var(--ok); }
 .pill.Inactive { background: var(--nob); color: var(--no); }
 .pill.cm { background: #f3e8ff; color: #7e22ce; margin-left: 4px; }
+.pill.sched-cnt {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    cursor: pointer;
+}
+.pill.sched-cnt:hover {
+    background: #dbeafe;
+}
 
 /* Applicable to: New-Line items and Floating Popover */
 .appl-td {
@@ -348,18 +546,18 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
 
 .appl-lines {
     display: flex;
-    flex-direction: column;
-    gap: 3px;
-    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
 }
 
 .appl-item {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     padding: 2px 7px;
     border-radius: 5px;
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 600;
     color: #475569;
     background: #f8fafc;
@@ -428,7 +626,7 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
     margin-bottom: 6px;
     font-weight: 700;
     font-size: 11.5px;
-    text-transform: uppercase;
+    text-transform: capitalize;
     letter-spacing: 0.3px;
     color: var(--pri-d);
 }
@@ -446,21 +644,6 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
     max-height: 170px;
     overflow-y: auto;
     padding-right: 4px;
-}
-
-.appl-pop-body::-webkit-scrollbar {
-    width: 5px;
-}
-.appl-pop-body::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 4px;
-}
-.appl-pop-body::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
-}
-.appl-pop-body::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
 }
 
 .appl-pop-list {
@@ -509,6 +692,7 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
 
 .ib:hover { border-color: var(--pri); color: var(--pri); }
 .ib.d:hover { border-color: var(--no); color: var(--no); }
+.ib.v:hover { border-color: #0e7490; color: #0e7490; }
 
 .foot {
     display: flex;
@@ -538,7 +722,7 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
 }
 
 .pg button:disabled { opacity: .45; cursor: default; }
-.empty { text-align: center; padding: 30px; color: var(--mu); }
+.empty { text-align: center; padding: 24px; color: var(--mu); }
 
 /* MODAL OVERLAY */
 .ov {
@@ -551,14 +735,40 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
     overflow-y: auto;
 }
 
+.ov.ov-detail {
+    z-index: 100050;
+    background: rgba(15, 23, 42, .68);
+}
+
+.ov.ov-delete {
+    z-index: 100120;
+    background: rgba(15, 23, 42, .72);
+}
+
 .ov.open { display: block; }
+.ov.ov-delete.open {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
 .modal-box {
     background: #fff;
     border-radius: 12px;
-    max-width: 900px;
-    margin: 25px auto;
+    max-width: 1020px;
+    margin: 20px auto;
     box-shadow: 0 20px 60px rgba(0, 0, 0, .3);
     animation: modalIn 0.2s ease-out;
+}
+
+.modal-box.detail-modal-box {
+    max-width: 900px;
+    margin: 35px auto;
+}
+
+.modal-box.delete-modal-box {
+    width: 100%;
+    max-width: 450px;
+    margin: 0 auto !important;
 }
 
 @@keyframes modalIn {
@@ -570,10 +780,18 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 22px;
+    padding: 15px 22px;
     background: #1f3a5f;
     color: #fff;
     border-radius: 12px 12px 0 0;
+}
+
+.mh.mh-detail {
+    background: #0f4c75;
+}
+
+.mh.mh-delete {
+    background: #991b1b;
 }
 
 .mh h3 { margin: 0; font-size: 18px; color: #fff; font-weight: 700; }
@@ -586,7 +804,7 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
     line-height: 1;
 }
 
-.mb { padding: 6px 22px 14px; }
+.mb { padding: 8px 22px 16px; }
 .grid-form {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -595,6 +813,7 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
 
 .f { display: flex; flex-direction: column; gap: 4px; }
 .f.s2 { grid-column: span 2; }
+.f.s3 { grid-column: span 3; }
 .f.s4 { grid-column: span 4; }
 .f > label { font-size: 12px; font-weight: 600; color: #6b7a8c; margin-bottom: 0; }
 .req { color: #dc2626; font-weight: 700; }
@@ -621,15 +840,30 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
     border-color: #1f3a5f;
 }
 
+.sec-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 16px 0 10px;
+    border-bottom: 1px solid #e1e6ed;
+    padding-bottom: 6px;
+}
+
 .sec {
     margin: 16px 0 8px;
     font-size: 12px;
     font-weight: 700;
-    text-transform: uppercase;
+    text-transform: capitalize;
     letter-spacing: .8px;
     color: #c8963e;
     border-bottom: 1px solid #e1e6ed;
     padding-bottom: 6px;
+}
+
+.sec-bar .sec {
+    margin: 0;
+    border-bottom: 0;
+    padding-bottom: 0;
 }
 
 .mf {
@@ -660,6 +894,45 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
 }
 
 .modal-box .btn-modal.p:hover { background: #16294a; }
+.modal-box .btn-modal.d {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #fff;
+}
+.modal-box .btn-modal.d:hover {
+    background: #991b1b;
+    border-color: #991b1b;
+}
+.del-body {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 16px 4px 10px;
+}
+.del-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #fee2e2;
+    color: #dc2626;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.del-text h4 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #111827;
+}
+.del-text p {
+    margin: 0;
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.45;
+}
 .chk {
     display: flex;
     flex-direction: row;
@@ -682,6 +955,11 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
     padding: 4px 6px;
     width: fit-content;
     user-select: none;
+}
+
+.tp.readonly {
+    opacity: 0.75;
+    pointer-events: none;
 }
 
 .tp .seg {
@@ -712,12 +990,13 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
 }
 .tp .sp i:hover { background: #c3cdee; }
 
-/* MULTI SELECT */
+/* MULTI SELECT & SEARCHABLE DROPDOWN (PROJECT STYLE) */
 .ms { position: relative; }
+.ms.readonly { pointer-events: none; opacity: 0.8; }
 .msb {
     width: 100%;
     height: 38px;
-    padding: 0 12px;
+    padding: 0 60px 0 12px;
     border: 1px solid #e1e6ed;
     border-radius: 8px;
     background: #fff;
@@ -726,38 +1005,177 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 13px;
+    font-size: 13.5px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    color: #1f2937;
 }
 
-.msb .ph { color: #6b7a8c; }
+.msb .ms-selected-text {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 36px;
+}
+
+.msb .ms-selected-text.ph {
+    color: #6b7a8c;
+}
+
+.msb .ms-inline-search {
+    display: none;
+    width: 100%;
+    height: 30px;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    font-size: 13.5px;
+    color: #1f2937;
+    padding: 0;
+    margin: 0;
+}
+
+.ms.open .msb .ms-selected-text {
+    display: none !important;
+}
+
+.ms.open .msb .ms-inline-search {
+    display: block !important;
+}
+
+.msb .ms-right-clear {
+    position: absolute;
+    right: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    font-weight: 700;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 2px 5px;
+    line-height: 1;
+    border-radius: 4px;
+    display: none;
+    z-index: 3;
+}
+
+.msb .ms-right-clear:hover {
+    color: #b91c1c;
+    background: #fee2e2;
+}
+
+.msb .ms-caret {
+    position: absolute;
+    right: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    color: #6b7280;
+    pointer-events: none;
+    transition: transform 0.15s ease;
+}
+
+.ms.open .msb .ms-caret {
+    transform: translateY(-50%) rotate(180deg);
+    color: #1f3a5f;
+}
+
 .msl {
     display: none;
     position: absolute;
     left: 0;
     right: 0;
-    top: 42px;
-    max-height: 210px;
+    top: 41px;
+    max-height: 240px;
     overflow-y: auto;
     background: #fff;
-    border: 1px solid #e1e6ed;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
-    box-shadow: 0 4px 14px rgba(20, 35, 60, .15);
-    z-index: 1000;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .16);
+    z-index: 1050;
+    padding: 4px 0;
 }
 
 .ms.open .msl { display: block; }
+
+.msl .ms-clear-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+    user-select: none;
+}
+
+.msl .ms-clear-row:hover {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.msl .ms-all-row {
+    border-bottom: 1px solid #f1f5f9;
+    background: #f8fafc;
+    font-weight: 600 !important;
+}
+
 .msl label {
     display: flex;
+    align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 7px 12px;
     cursor: pointer;
     font-size: 13.5px;
     font-weight: 400;
     color: #1d2733;
     margin-bottom: 0;
+    user-select: none;
 }
 
-.msl label:hover { background: #f3f5f8; }
+.msl label:hover { background: #eff6ff; }
+.msl label input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: #1f3a5f;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.msl .ms-single-opt {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13.5px;
+    color: #1d2733;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.msl .ms-single-opt:hover {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.msl .ms-single-opt.active {
+    background: #e0e7ff;
+    color: #1e3a8a;
+    font-weight: 600;
+}
+
+.msl .ms-empty {
+    padding: 10px 12px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 12.5px;
+    font-style: italic;
+}
 
 .toast-box {
     position: fixed;
@@ -773,45 +1191,16 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
     font-weight: 500;
 }
 
-/* RESPONSIVE DESIGN */
-@@media(max-width: 1180px) {
-    .filters {
-        grid-template-columns: repeat(3, 1fr);
-    }
-    .filters label { grid-column: span 3; }
-    table.shift-table, thead, tbody, tr, td { display: block; }
-    thead { display: none; }
-    tbody tr {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 6px 12px;
-        padding: 12px 14px;
-        border-bottom: 1px solid var(--bd);
-    }
-    td { border: 0 !important; padding: 0 !important; }
-    td[data-l]:before {
-        content: attr(data-l);
-        display: block;
-        font-size: 10.5px;
-        text-transform: uppercase;
-        color: var(--mu);
-        font-weight: 700;
-    }
-    td.wide { grid-column: span 2; }
-    td.act { grid-column: span 2; text-align: right; align-self: end; }
-}
-
 @@media(max-width: 760px) {
     .grid-form { grid-template-columns: 1fr 1fr; }
-    .f.s4, .sec { grid-column: span 2; }
-    tbody tr { grid-template-columns: repeat(2, 1fr); }
+    .f.s3, .f.s4, .sec { grid-column: span 2; }
 }
 
 @@media(max-width: 520px) {
     .ov { padding: 10px; }
     .mb { padding: 6px 14px 8px; }
     .grid-form { grid-template-columns: 1fr; }
-    .f.s2, .f.s4, .sec { grid-column: span 1; }
+    .f.s2, .f.s3, .f.s4, .sec { grid-column: span 1; }
     .mf { padding: 12px 14px; }
 }
 
@@ -828,11 +1217,11 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
             <h1>Shift Setup</h1>
             <input class="in gsearch" id="gs" placeholder="🔍 Search shifts…">
             <div class="dd" id="exp">
-                <button type="button" class="btn-custom" onclick="this.parentNode.classList.toggle('open')">⬇ Export ▾</button>
+                <button type="button" class="btn-custom" onclick="this.parentNode.classList.toggle('open')">⬇ Export / Report ▾</button>
                 <div class="menu">
-                    <button type="button" onclick="window.print()">🖨 Print / Preview</button>
-                    <button type="button" onclick="window.print()">📄 PDF (Save as PDF)</button>
-                    <button type="button" onclick="exportCSV()">📊 Excel (CSV)</button>
+                    <button type="button" onclick="q('#exp')?.classList.remove('open'); previewPdfReport()">👁 PDF Preview</button>
+                    <button type="button" onclick="q('#exp')?.classList.remove('open'); downloadPdfReport()">📄 Download PDF</button>
+                    <button type="button" onclick="q('#exp')?.classList.remove('open'); exportExcelReport()">📊 Download Excel (.xlsx)</button>
                 </div>
             </div>
             <button type="button" class="btn-custom p" onclick="openForm()">＋ New Shift</button>
@@ -841,28 +1230,46 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
         <!-- KPI Cards -->
         <div class="kpis" id="kpis"></div>
 
-        <!-- Filter Bar -->
+        <!-- Filter Bar (Project-Style Searchable & Cascading Dropdowns) -->
         <div class="card-box filters">
             <label>Filter By:</label>
-            <select class="in" id="fType">
-                <option value="">Shift type: All</option>
-            </select>
-            <select class="in" id="fCo"><option value="">Company: All</option></select>
-            <select class="in" id="fBr"><option value="">Branch: All</option></select>
-            <select class="in" id="fDp"><option value="">Department: All</option></select>
-            <select class="in" id="fSt">
-                <option value="">Activity status: All</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-            </select>
+            <div>
+                <select class="in" id="fType" style="display:none;">
+                    <option value="">Shift type: All</option>
+                </select>
+                <div class="ms" id="msFType"></div>
+            </div>
+            <div>
+                <select class="in" id="fCo" style="display:none;"><option value="">Company: All</option></select>
+                <div class="ms" id="msFCo" data-fms="fCo"></div>
+            </div>
+            <div>
+                <select class="in" id="fBr" style="display:none;"><option value="">Branch: All</option></select>
+                <div class="ms" id="msFBr" data-fms="fBr"></div>
+            </div>
+            <div>
+                <select class="in" id="fDp" style="display:none;"><option value="">Department: All</option></select>
+                <div class="ms" id="msFDp" data-fms="fDp"></div>
+            </div>
+            <div>
+                <div class="ms" id="msFEmp" data-fms="fEmp"></div>
+            </div>
+            <div>
+                <select class="in" id="fSt" style="display:none;">
+                    <option value="">Activity status: All</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+                <div class="ms" id="msFSt"></div>
+            </div>
             <button type="button" class="btn-custom" onclick="resetF()">↺ Reset</button>
         </div>
 
-        <!-- Shift List Table Card -->
+        <!-- Shift List Table Card (Master + Expandable Details) -->
         <div class="card-box">
             <div class="tb">
                 <div class="tb-left">
-                    <h2>Shift List</h2>
+                    <h2>Shift List (Master)</h2>
                     <label class="tb-select">
                         Show 
                         <select class="in" id="pp" style="margin: 0 4px;">
@@ -873,50 +1280,33 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
                         Entries
                     </label>
                 </div>
-                <label class="tb-search">
-                    Search: 
-                    <input class="in" id="ls" placeholder="Type to search" style="width: 220px;">
-                </label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button type="button" class="btn-custom" onclick="toggleExpandAll()" id="btnExpandAll">⊞ Expand All Details</button>
+                    <label class="tb-search">
+                        Search: 
+                        <input class="in" id="ls" placeholder="Type to search" style="width: 220px;">
+                    </label>
+                </div>
             </div>
             <div class="shift-table-wrap">
                 <table class="shift-table">
                     <thead>
                         <tr>
+                            <th style="width: 90px;">Details</th>
                             <th class="th-sort" data-col="id" onclick="sortBy('id')">
                                 <div class="th-inner"><span>Shift ID</span><span class="sort-arrows"><i class="arr-u active" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('id', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('id', 'desc')">▼</i></span></div>
                             </th>
                             <th class="th-sort" data-col="name" onclick="sortBy('name')">
-                                <div class="th-inner"><span>Shift name</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('name', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('name', 'desc')">▼</i></span></div>
+                                <div class="th-inner"><span>Shift Name</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('name', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('name', 'desc')">▼</i></span></div>
                             </th>
                             <th class="th-sort" data-col="type" onclick="sortBy('type')">
-                                <div class="th-inner"><span>Type</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('type', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('type', 'desc')">▼</i></span></div>
+                                <div class="th-inner"><span>Shift Type</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('type', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('type', 'desc')">▼</i></span></div>
                             </th>
-                            <th class="th-sort" data-col="start" onclick="sortBy('start')">
-                                <div class="th-inner"><span>Start – End</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('start', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('start', 'desc')">▼</i></span></div>
-                            </th>
-                            <th class="th-sort" data-col="late" onclick="sortBy('late')">
-                                <div class="th-inner"><span>Late</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('late', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('late', 'desc')">▼</i></span></div>
-                            </th>
-                            <th class="th-sort" data-col="absent" onclick="sortBy('absent')">
-                                <div class="th-inner"><span>Absent</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('absent', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('absent', 'desc')">▼</i></span></div>
-                            </th>
-                            <th class="th-sort" data-col="bf" onclick="sortBy('bf')">
-                                <div class="th-inner"><span>Break</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('bf', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('bf', 'desc')">▼</i></span></div>
-                            </th>
-                            <th class="th-sort" data-col="early" onclick="sortBy('early')">
-                                <div class="th-inner"><span>Early leave before</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('early', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('early', 'desc')">▼</i></span></div>
-                            </th>
-                            <th class="th-sort" data-col="appl" onclick="sortBy('appl')">
-                                <div class="th-inner"><span>Applicable to</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('appl', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('appl', 'desc')">▼</i></span></div>
-                            </th>
-                            <th class="th-sort" data-col="otRule" onclick="sortBy('otRule')">
-                                <div class="th-inner"><span>Overtime</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('otRule', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('otRule', 'desc')">▼</i></span></div>
-                            </th>
-                            <th class="th-sort" data-col="eff" onclick="sortBy('eff')">
-                                <div class="th-inner"><span>Effective From</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('eff', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('eff', 'desc')">▼</i></span></div>
-                            </th>
+                            <th>Description</th>
+                            <th>Timing Schedules</th>
+                            <th>Administrative Remarks</th>
                             <th class="th-sort" data-col="status" onclick="sortBy('status')">
-                                <div class="th-inner"><span>Status</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('status', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('status', 'desc')">▼</i></span></div>
+                                <div class="th-inner"><span>Activity Status</span><span class="sort-arrows"><i class="arr-u" title="Sort Ascending" onclick="event.stopPropagation(); sortBy('status', 'asc')">▲</i><i class="arr-d" title="Sort Descending" onclick="event.stopPropagation(); sortBy('status', 'desc')">▼</i></span></div>
                             </th>
                             <th>Actions</th>
                         </tr>
@@ -931,7 +1321,7 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
         </div>
     </div>
 
-    <!-- ===== ADD / EDIT MODAL POPUP ===== -->
+    <!-- ===== 1. MASTER MODAL POPUP (Basic Details + Master Status + Details Grid) ===== -->
     <div class="ov" id="ov">
         <div class="modal-box">
             <div class="mh">
@@ -959,6 +1349,68 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
                     </div>
                 </div>
 
+                <div class="sec">Master Status &amp; Administrative Remarks</div>
+                <div class="grid-form">
+                    <div class="f">
+                        <label>Activity status</label>
+                        <select class="inp" id="status">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="f s3">
+                        <label>Administrative remarks</label>
+                        <input class="inp" id="rem" placeholder="Any additional administrative notes for this shift">
+                    </div>
+                </div>
+
+                <!-- DETAILS GRID SECTION INSIDE MASTER MODAL -->
+                <div class="sec-bar">
+                    <div class="sec">Shift Details (Timing, Applicable To &amp; Overtime Rules)</div>
+                    <button type="button" class="btn-custom p" style="padding: 6px 12px; font-size: 12.5px;" onclick="openDetailModal('add')">
+                        ＋ Add Shift Details
+                    </button>
+                </div>
+
+                <div class="sub-card" style="margin-top: 6px;">
+                    <div class="shift-table-wrap">
+                        <table class="detail-sub-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Start – End</th>
+                                    <th>Late</th>
+                                    <th>Absent</th>
+                                    <th>Break</th>
+                                    <th>Early Leave</th>
+                                    <th>Applicable To</th>
+                                    <th>Overtime</th>
+                                    <th>Effective From</th>
+                                    <th>Remarks</th>
+                                    <th>Status</th>
+                                    <th style="width: 150px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalDetailsTb"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="mf">
+                <button type="button" class="btn-modal" onclick="closeForm()">Cancel</button>
+                <button type="button" class="btn-modal p" onclick="save()">Save Shift</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 2. DETAILS MODAL POPUP (Add / Edit / View Timing, Applicable To, Overtime, WEF, Status, Remarks) ===== -->
+    <div class="ov ov-detail" id="ovDetail">
+        <div class="modal-box detail-modal-box">
+            <div class="mh mh-detail">
+                <h3 id="detailModalTitle">Add Shift Timing &amp; Rules Details</h3>
+                <button type="button" onclick="closeDetailModal()" aria-label="Close">×</button>
+            </div>
+            <div class="mb" id="detailModalBody">
                 <div class="sec">Timing &amp; attendance rules</div>
                 <div class="grid-form">
                     <div class="f"><label>Start time <span class="req">*</span></label><div class="tp" data-tp="start"></div></div>
@@ -981,7 +1433,8 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
                 <div class="grid-form">
                     <div class="f s2">
                         <label>Overtime rule</label>
-                        <select class="inp" id="otRule"></select>
+                        <select class="inp" id="otRule" style="display:none;"></select>
+                        <div class="ms" id="msOtRule"></div>
                     </div>
                     <div class="f"><label>OT start after (min)</label><input class="inp" type="number" min="0" id="otAfter" value="60"></div>
                     <div class="f"><label>Maximum OT per day (hrs)</label><input class="inp" type="number" min="0" step="0.5" id="otMax" value="4"></div>
@@ -993,22 +1446,22 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
                     <div class="f">
                         <label>Weekly-off OT</label>
                         <select class="inp" id="woOT">
-                            <option>Not Applicable</option>
-                            <option>Pay Overtime</option>
-                            <option>Compensatory Leave</option>
+                            <option value="Not Applicable">Not Applicable</option>
+                            <option value="Pay Overtime">Pay Overtime</option>
+                            <option value="Compensatory Leave">Compensatory Leave</option>
                         </select>
                     </div>
                     <div class="f">
                         <label>Holiday OT</label>
                         <select class="inp" id="hOT">
-                            <option>Not Applicable</option>
-                            <option>Pay Overtime</option>
-                            <option>Compensatory Leave</option>
+                            <option value="Not Applicable">Not Applicable</option>
+                            <option value="Pay Overtime">Pay Overtime</option>
+                            <option value="Compensatory Leave">Compensatory Leave</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="sec">Status</div>
+                <div class="sec">Effective Date, Activity Status &amp; Remarks</div>
                 <div class="grid-form">
                     <div class="f">
                         <label>Effective from date <span class="req">*</span></label>
@@ -1016,20 +1469,60 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
                     </div>
                     <div class="f">
                         <label>Activity status</label>
-                        <select class="inp" id="status">
+                        <select class="inp" id="dStatus">
                             <option value="Active">Active</option>
                             <option value="Inactive">Inactive</option>
                         </select>
                     </div>
                     <div class="f s2">
-                        <label>Administrative remarks</label>
-                        <input class="inp" id="rem" placeholder="Any additional notes">
+                        <label>Remarks</label>
+                        <input class="inp" id="dRem" placeholder="Remarks for this shift timing">
+                    </div>
+                </div>
+            </div>
+            <div class="mf" id="detailModalFooter">
+                <button type="button" class="btn-modal" onclick="closeDetailModal()">Cancel</button>
+                <button type="button" class="btn-modal p" id="btnSaveDetailItem" onclick="saveDetailItem()">Save Details</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 3. DELETE CONFIRMATION MODAL POPUP ===== -->
+    <div class="ov ov-delete" id="ovDelete">
+        <div class="modal-box delete-modal-box">
+            <div class="mh mh-delete">
+                <h3 id="deleteModalTitle">Delete Confirmation</h3>
+                <button type="button" onclick="closeDeleteModal()" aria-label="Close">×</button>
+            </div>
+            <div class="mb">
+                <div class="del-body">
+                    <div class="del-icon">🗑</div>
+                    <div class="del-text">
+                        <h4 id="deleteModalHeading">Are you sure you want to delete?</h4>
+                        <p id="deleteModalMessage">This action will permanently remove the selected record.</p>
                     </div>
                 </div>
             </div>
             <div class="mf">
-                <button type="button" class="btn-modal" onclick="closeForm()">Cancel</button>
-                <button type="button" class="btn-modal p" onclick="save()">Save Shift</button>
+                <button type="button" class="btn-modal" onclick="closeDeleteModal()">No</button>
+                <button type="button" class="btn-modal d" id="btnConfirmDelete" onclick="confirmDeleteAction()">Yes, Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 4. PDF PREVIEW MODAL POPUP ===== -->
+    <div class="ov ov-detail" id="ovPdfPreview">
+        <div class="modal-box" style="max-width: 1120px; margin: 16px auto;">
+            <div class="mh" style="background: #1e293b;">
+                <h3 id="pdfModalTitle">📄 Shift Setup Report – PDF Preview</h3>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button type="button" class="btn-custom" style="font-size:12.5px; padding:5px 11px; color:#1e293b;" onclick="downloadPdfReport()">⬇ Download PDF</button>
+                    <button type="button" class="btn-custom" style="font-size:12.5px; padding:5px 11px; color:#1e293b;" onclick="exportExcelReport()">📊 Download Excel</button>
+                    <button type="button" onclick="closePdfPreviewModal()" aria-label="Close">×</button>
+                </div>
+            </div>
+            <div style="padding: 0; background: #525659; border-radius: 0 0 12px 12px; overflow: hidden;">
+                <iframe id="pdfPreviewFrame" style="width: 100%; height: 80vh; border: none; display: block;"></iframe>
             </div>
         </div>
     </div>
@@ -1039,6 +1532,9 @@ table.shift-table tbody tr:hover { background: #f7f9ff; }
 </div>
 
 @section Scripts {
+<script src="~/FrontEnd/plugins/jszip/jszip.min.js"></script>
+<script src="~/FrontEnd/plugins/pdfmake/pdfmake.min.js"></script>
+<script src="~/FrontEnd/plugins/pdfmake/vfs_fonts.js"></script>
 <script>
 /* ===== REAL DATABASE MASTER DATA ===== */
 const DB_DATA = {
@@ -1050,14 +1546,38 @@ const DB_DATA = {
     otRule: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(otRules))
 };
 
-const OPT = {
-    company: (DB_DATA.company || []).map(x => ({ id: x.id, name: x.name })),
-    branch: (DB_DATA.branch || []).map(x => ({ id: x.id, name: x.name })),
-    dept: (DB_DATA.dept || []).map(x => ({ id: x.id, name: x.name })),
-    emp: (DB_DATA.emp || []).map(x => ({ id: x.id, name: x.name }))
+const ALL_OPT = {
+    company: (DB_DATA.company || []).map(x => ({
+        id: String(x.id || '').trim(),
+        name: x.name || ''
+    })),
+    branch: (DB_DATA.branch || []).map(x => ({
+        id: String(x.id || '').trim(),
+        name: x.name || '',
+        companyCodes: (x.companyCodes || []).map(c => String(c || '').trim()).filter(Boolean)
+    })),
+    dept: (DB_DATA.dept || []).map(x => ({
+        id: String(x.id || '').trim(),
+        name: x.name || '',
+        companyCodes: (x.companyCodes || []).map(c => String(c || '').trim()).filter(Boolean),
+        branchCodes: (x.branchCodes || []).map(b => String(b || '').trim()).filter(Boolean)
+    })),
+    emp: (DB_DATA.emp || []).map(x => ({
+        id: String(x.id || '').trim(),
+        name: x.name || '',
+        companyCode: String(x.companyCode || '').trim(),
+        branchCode: String(x.branchCode || '').trim(),
+        deptCode: String(x.deptCode || '').trim()
+    }))
 };
 
-// Safe DOM Selectors (avoids shadowing window.$ / jQuery)
+const OPT = {
+    company: [...ALL_OPT.company],
+    branch: [...ALL_OPT.branch],
+    dept: [...ALL_OPT.dept],
+    emp: [...ALL_OPT.emp]
+};
+
 const q = s => document.querySelector(s);
 const qAll = s => [...document.querySelectorAll(s)];
 const TPK = ['start', 'end', 'late', 'absent', 'bf', 'bt', 'early'];
@@ -1149,77 +1669,453 @@ const mins = t => {
     return ((+m[1] % 12) + (m[4].toUpperCase() == 'PM' ? 12 : 0)) * 60 + +m[2];
 };
 
-/* ===== MULTI SELECT DROPDOWN ===== */
+function formatDateDDMMYYYY(val) {
+    if (!val || val === '-') return '';
+    const s = String(val).trim();
+    const mIso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (mIso) {
+        return `${mIso[3].padStart(2, '0')}/${mIso[2].padStart(2, '0')}/${mIso[1]}`;
+    }
+    const mSlash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (mSlash) {
+        return `${mSlash[1].padStart(2, '0')}/${mSlash[2].padStart(2, '0')}/${mSlash[3]}`;
+    }
+    return s;
+}
+
+function toIsoDateStr(val) {
+    if (!val) return new Date().toISOString().slice(0, 10);
+    const s = String(val).trim();
+    const mIso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (mIso) {
+        return `${mIso[1]}-${mIso[2].padStart(2, '0')}-${mIso[3].padStart(2, '0')}`;
+    }
+    const mSlash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (mSlash) {
+        return `${mSlash[3]}-${mSlash[2].padStart(2, '0')}-${mSlash[1].padStart(2, '0')}`;
+    }
+    return new Date().toISOString().slice(0, 10);
+}
+
+/* ===== PROJECT-STYLE SEARCHABLE MULTI-SELECT & CASCADING DROPDOWNS ===== */
 const MS = {};
+
 function buildMS(el, key, label) {
     if (!el) return;
     MS[key] = [];
     el.dataset.label = label;
-    el.innerHTML = '<button type="button" class="msb"></button><div class="msl"></div>';
-    el.querySelector('.msl').innerHTML = '<label><input type="checkbox" data-all> <b>Select all</b></label>' +
-        (OPT[key] || []).map(o => `<label><input type="checkbox" value="${o.id}"> ${o.name}</label>`).join('');
+    el.innerHTML = `
+        <button type="button" class="msb">
+            <span class="ms-selected-text ph">Select ${label.toLowerCase()}</span>
+            <input type="text" class="ms-inline-search" placeholder="Type to search ${label.toLowerCase()}..." autocomplete="off">
+            <span class="ms-right-clear" title="Clear selection">×</span>
+            <span class="ms-caret">▾</span>
+        </button>
+        <div class="msl"></div>
+    `;
 
-    el.querySelector('.msb').onclick = () => {
-        qAll('.ms').forEach(m => m != el && m.classList.remove('open'));
-        el.classList.toggle('open');
-    };
+    const msb = el.querySelector('.msb');
+    const searchInp = el.querySelector('.ms-inline-search');
+    const rightClear = el.querySelector('.ms-right-clear');
+    const msl = el.querySelector('.msl');
 
-    el.querySelector('.msl').onchange = e => {
-        const cs = [...el.querySelectorAll('.msl [value]')];
-        if (e.target.dataset.all != null) {
-            cs.forEach(c => c.checked = e.target.checked);
+    rebuildMSOptions(el, key, label);
+
+    msb.onclick = e => {
+        if (e.target.closest('.ms-right-clear')) return;
+        if (e.target === searchInp && el.classList.contains('open')) return;
+
+        const wasOpen = el.classList.contains('open');
+        qAll('.ms').forEach(m => {
+            if (m !== el) closeMSInstance(m);
+        });
+
+        if (wasOpen && e.target !== searchInp) {
+            closeMSInstance(el);
+        } else {
+            el.classList.add('open');
+            if (searchInp) {
+                searchInp.value = '';
+                filterMSList(el, '');
+                setTimeout(() => searchInp.focus(), 10);
+            }
         }
-        MS[key] = cs.filter(c => c.checked).map(c => c.value);
-        renderMS(el, key, label);
     };
+
+    if (searchInp) {
+        searchInp.onclick = e => e.stopPropagation();
+        searchInp.onkeydown = e => {
+            e.stopPropagation();
+            if (e.key === 'Escape') {
+                closeMSInstance(el);
+            }
+        };
+        searchInp.oninput = e => {
+            filterMSList(el, e.target.value);
+        };
+    }
+
+    if (rightClear) {
+        rightClear.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            MS[key] = [];
+            renderMS(el, key, label);
+            applyCascade(key);
+        };
+    }
+
+    msl.onclick = e => {
+        const clearRow = e.target.closest('.ms-clear-row');
+        if (clearRow) {
+            e.preventDefault();
+            e.stopPropagation();
+            MS[key] = [];
+            if (searchInp) {
+                searchInp.value = '';
+                filterMSList(el, '');
+            }
+            renderMS(el, key, label);
+            applyCascade(key);
+        }
+    };
+
+    msl.onchange = e => {
+        const allCbs = [...el.querySelectorAll('.msl label[data-item] input[value]')];
+        const visibleCbs = allCbs.filter(c => c.closest('label').style.display !== 'none');
+
+        if (e.target.dataset.all != null) {
+            visibleCbs.forEach(c => c.checked = e.target.checked);
+        }
+        MS[key] = allCbs.filter(c => c.checked).map(c => String(c.value).trim());
+        renderMS(el, key, label);
+        applyCascade(key);
+    };
+
     renderMS(el, key, label);
+}
+
+function closeMSInstance(el) {
+    if (!el) return;
+    el.classList.remove('open');
+    const searchInp = el.querySelector('.ms-inline-search');
+    if (searchInp && searchInp.value) {
+        searchInp.value = '';
+        filterMSList(el, '');
+    }
+}
+
+function rebuildMSOptions(el, key, label) {
+    if (!el) return;
+    const msl = el.querySelector('.msl');
+    if (!msl) return;
+    const items = OPT[key] || [];
+    const selectedSet = new Set((MS[key] || []).map(x => String(x).trim()));
+
+    if (items.length === 0) {
+        msl.innerHTML = `<div class="ms-empty">No ${(label || key).toLowerCase()} available</div>`;
+        return;
+    }
+
+    msl.innerHTML =
+        `<div class="ms-clear-row" style="display:none;"><span>×</span> <span>Clear all</span></div>` +
+        `<label class="ms-all-row"><input type="checkbox" data-all> <span>Select All</span></label>` +
+        items.map(o => {
+            const isChecked = selectedSet.has(String(o.id).trim()) ? 'checked' : '';
+            return `<label data-item data-search="${(o.name + ' ' + o.id).toLowerCase().replace(/"/g, '&quot;')}"><input type="checkbox" value="${o.id}" ${isChecked}> <span>${o.name}</span></label>`;
+        }).join('') +
+        `<div class="ms-empty" style="display:none;">No matching results</div>`;
+}
+
+function filterMSList(el, term) {
+    if (!el) return;
+    const qTerm = (term || '').toLowerCase().trim();
+    const itemLabels = [...el.querySelectorAll('.msl label[data-item], .msl .ms-single-opt')];
+    let visibleCount = 0;
+
+    itemLabels.forEach(lbl => {
+        const text = (lbl.dataset.search || lbl.textContent || '').toLowerCase();
+        const match = !qTerm || text.includes(qTerm);
+        lbl.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+    });
+
+    const allRow = el.querySelector('.msl .ms-all-row');
+    if (allRow) allRow.style.display = visibleCount > 0 ? '' : 'none';
+
+    const emptyMsg = el.querySelector('.msl .ms-empty');
+    if (emptyMsg && itemLabels.length > 0) {
+        emptyMsg.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+
+    // Update Select All checkbox state for visible items
+    const allCb = el.querySelector('.msl input[data-all]');
+    if (allCb) {
+        const visibleCbs = itemLabels
+            .filter(l => l.style.display !== 'none')
+            .map(l => l.querySelector('input[value]'))
+            .filter(Boolean);
+        allCb.checked = visibleCbs.length > 0 && visibleCbs.every(c => c.checked);
+    }
 }
 
 function renderMS(el, key, label) {
     if (!el) return;
-    const a = MS[key] || [];
+    const a = (MS[key] || []).map(x => String(x).trim());
     const items = OPT[key] || [];
-    const names = items.filter(x => a.includes(x.id)).map(x => x.name);
-    const msb = el.querySelector('.msb');
+    const allItems = ALL_OPT[key] || items;
+    const names = items.filter(x => a.includes(String(x.id).trim())).map(x => x.name);
+    const fallbackNames = names.length ? names : allItems.filter(x => a.includes(String(x.id).trim())).map(x => x.name);
+
+    const textSpan = el.querySelector('.msb .ms-selected-text');
+    const rightClear = el.querySelector('.msb .ms-right-clear');
+    const clearRow = el.querySelector('.msl .ms-clear-row');
     const lbl = (label || el.dataset.label || key).toLowerCase();
-    if (msb) {
-        if (names.length === 0) {
-            msb.textContent = 'Select ' + lbl;
-            msb.title = '';
-        } else if (names.length === 1) {
-            msb.textContent = names[0];
-            msb.title = names[0];
+
+    if (textSpan) {
+        if (fallbackNames.length === 0) {
+            textSpan.textContent = 'Select ' + lbl;
+            textSpan.classList.add('ph');
+            el.querySelector('.msb').title = '';
+        } else if (fallbackNames.length === 1) {
+            textSpan.textContent = fallbackNames[0];
+            textSpan.classList.remove('ph');
+            el.querySelector('.msb').title = fallbackNames[0];
         } else {
-            msb.textContent = `${names.length} ${lbl} selected`;
-            msb.title = names.join(', ');
+            textSpan.textContent = `${fallbackNames.length} ${lbl} selected`;
+            textSpan.classList.remove('ph');
+            el.querySelector('.msb').title = fallbackNames.join(', ');
         }
     }
-    el.querySelectorAll('.msl [value]').forEach(c => c.checked = a.includes(c.value));
+
+    if (rightClear) rightClear.style.display = a.length > 0 ? 'inline-block' : 'none';
+    if (clearRow) clearRow.style.display = a.length > 0 ? 'flex' : 'none';
+
+    const cbs = [...el.querySelectorAll('.msl label[data-item] input[value]')];
+    cbs.forEach(c => c.checked = a.includes(String(c.value).trim()));
+
     const all = el.querySelector('[data-all]');
-    if (all) all.checked = items.length > 0 && a.length === items.length;
+    if (all) {
+        const visibleCbs = cbs.filter(c => c.closest('label').style.display !== 'none');
+        all.checked = visibleCbs.length > 0 && visibleCbs.every(c => c.checked);
+    }
 }
 
-function setMS(key, arr) {
-    MS[key] = Array.isArray(arr) ? [...arr] : (arr ? String(arr).split(',') : []);
+/* ===== CASCADING FILTER: Company -> Branch -> Department -> Employee ===== */
+function applyCascade(changedKey, keepExistingSelections = false) {
+    const selCompanies = (MS['company'] || []).map(x => String(x).trim()).filter(Boolean);
+
+    // 1. Filter Branches by selected Company
+    if (selCompanies.length === 0) {
+        OPT.branch = [...ALL_OPT.branch];
+    } else {
+        const matchedBranches = ALL_OPT.branch.filter(b =>
+            !b.companyCodes || b.companyCodes.length === 0 || b.companyCodes.some(c => selCompanies.includes(c))
+        );
+        OPT.branch = matchedBranches.length > 0 ? matchedBranches : [...ALL_OPT.branch];
+    }
+
+    if (!keepExistingSelections) {
+        const validBranchIds = new Set(OPT.branch.map(b => b.id));
+        MS['branch'] = (MS['branch'] || []).filter(id => validBranchIds.has(String(id).trim()));
+    }
+    const brEl = q('[data-ms="branch"]');
+    if (brEl) {
+        rebuildMSOptions(brEl, 'branch', brEl.dataset.label || 'Branch');
+        renderMS(brEl, 'branch', brEl.dataset.label || 'Branch');
+    }
+
+    // 2. Filter Departments by selected Company & Branch
+    const selBranches = (MS['branch'] || []).map(x => String(x).trim()).filter(Boolean);
+    if (selCompanies.length === 0 && selBranches.length === 0) {
+        OPT.dept = [...ALL_OPT.dept];
+    } else {
+        let matchedDepts = ALL_OPT.dept.filter(d => {
+            const matchCo = selCompanies.length === 0 || !d.companyCodes?.length || d.companyCodes.some(c => selCompanies.includes(c));
+            const matchBr = selBranches.length === 0 || (d.branchCodes && d.branchCodes.some(b => selBranches.includes(b)));
+            return matchCo && matchBr;
+        });
+        // Fallback if branch has no department mappings yet in EmployeeOfficialInfo
+        if (matchedDepts.length === 0 && selCompanies.length > 0) {
+            matchedDepts = ALL_OPT.dept.filter(d => !d.companyCodes?.length || d.companyCodes.some(c => selCompanies.includes(c)));
+        }
+        if (matchedDepts.length === 0) {
+            matchedDepts = [...ALL_OPT.dept];
+        }
+        OPT.dept = matchedDepts;
+    }
+
+    if (!keepExistingSelections) {
+        const validDeptIds = new Set(OPT.dept.map(d => d.id));
+        MS['dept'] = (MS['dept'] || []).filter(id => validDeptIds.has(String(id).trim()));
+    }
+    const dpEl = q('[data-ms="dept"]');
+    if (dpEl) {
+        rebuildMSOptions(dpEl, 'dept', dpEl.dataset.label || 'Department');
+        renderMS(dpEl, 'dept', dpEl.dataset.label || 'Department');
+    }
+
+    // 3. Filter Employees by selected Company, Branch & Department
+    const selDepts = (MS['dept'] || []).map(x => String(x).trim()).filter(Boolean);
+    if (selCompanies.length === 0 && selBranches.length === 0 && selDepts.length === 0) {
+        OPT.emp = [...ALL_OPT.emp];
+    } else {
+        OPT.emp = ALL_OPT.emp.filter(e => {
+            const matchCo = selCompanies.length === 0 || selCompanies.includes(e.companyCode);
+            const matchBr = selBranches.length === 0 || selBranches.includes(e.branchCode);
+            const matchDp = selDepts.length === 0 || selDepts.includes(e.deptCode);
+            return matchCo && matchBr && matchDp;
+        });
+    }
+
+    if (!keepExistingSelections) {
+        const validEmpIds = new Set(OPT.emp.map(e => e.id));
+        MS['emp'] = (MS['emp'] || []).filter(id => validEmpIds.has(String(id).trim()));
+    }
+    const empEl = q('[data-ms="emp"]');
+    if (empEl) {
+        rebuildMSOptions(empEl, 'emp', empEl.dataset.label || 'Employee');
+        renderMS(empEl, 'emp', empEl.dataset.label || 'Employee');
+    }
+}
+
+function setMS(key, arr, skipCascade = false) {
+    MS[key] = (Array.isArray(arr) ? [...arr] : (arr ? String(arr).split(',').filter(Boolean) : []))
+        .map(x => String(x).trim())
+        .filter(Boolean);
     const el = q(`[data-ms=${key}]`);
-    if (el) renderMS(el, key, el.dataset.label);
+    if (el) {
+        rebuildMSOptions(el, key, el.dataset.label);
+        renderMS(el, key, el.dataset.label);
+    }
+    if (!skipCascade) {
+        applyCascade(key);
+    }
+}
+
+/* ===== PROJECT-STYLE SINGLE-SELECT SEARCHABLE DROPDOWN (FOR OVERTIME RULE) ===== */
+function buildOtRuleSearchDropdown() {
+    const el = q('#msOtRule');
+    const sel = q('#otRule');
+    if (!el || !sel) return;
+
+    const rules = (DB_DATA.otRule && DB_DATA.otRule.length)
+        ? [{ id: '', name: 'Not Applicable' }, ...DB_DATA.otRule.map(r => ({ id: String(r.id).trim(), name: r.name }))]
+        : [
+            { id: '', name: 'Not Applicable' },
+            { id: '01', name: 'After Shift End' },
+            { id: '02', name: 'Shift End + After Grace' }
+        ];
+
+    sel.innerHTML = rules.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+
+    el.innerHTML = `
+        <button type="button" class="msb">
+            <span class="ms-selected-text">Not Applicable</span>
+            <input type="text" class="ms-inline-search" placeholder="Type to search overtime rule..." autocomplete="off">
+            <span class="ms-right-clear" title="Clear selection">×</span>
+            <span class="ms-caret">▾</span>
+        </button>
+        <div class="msl">
+            ${rules.map(r => `<div class="ms-single-opt" data-val="${r.id}" data-search="${r.name.toLowerCase().replace(/"/g, '&quot;')}">${r.name}</div>`).join('')}
+            <div class="ms-empty" style="display:none;">No matching results</div>
+        </div>
+    `;
+
+    const msb = el.querySelector('.msb');
+    const searchInp = el.querySelector('.ms-inline-search');
+    const rightClear = el.querySelector('.ms-right-clear');
+    const msl = el.querySelector('.msl');
+
+    msb.onclick = e => {
+        if (e.target.closest('.ms-right-clear')) return;
+        if (e.target === searchInp && el.classList.contains('open')) return;
+
+        const wasOpen = el.classList.contains('open');
+        qAll('.ms').forEach(m => {
+            if (m !== el) closeMSInstance(m);
+        });
+
+        if (wasOpen && e.target !== searchInp) {
+            closeMSInstance(el);
+        } else {
+            el.classList.add('open');
+            if (searchInp) {
+                searchInp.value = '';
+                filterMSList(el, '');
+                setTimeout(() => searchInp.focus(), 10);
+            }
+        }
+    };
+
+    if (searchInp) {
+        searchInp.onclick = e => e.stopPropagation();
+        searchInp.onkeydown = e => {
+            e.stopPropagation();
+            if (e.key === 'Escape') closeMSInstance(el);
+        };
+        searchInp.oninput = e => filterMSList(el, e.target.value);
+    }
+
+    if (rightClear) {
+        rightClear.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            setOtRuleValue('');
+        };
+    }
+
+    msl.onclick = e => {
+        const opt = e.target.closest('.ms-single-opt');
+        if (!opt) return;
+        setOtRuleValue(opt.dataset.val || '');
+        closeMSInstance(el);
+    };
+
+    setOtRuleValue(sel.value || '');
+}
+
+function setOtRuleValue(val) {
+    const sel = q('#otRule');
+    const el = q('#msOtRule');
+    const strVal = String(val || '').trim();
+    if (sel) sel.value = strVal;
+    if (!el) return;
+
+    const opts = [...el.querySelectorAll('.ms-single-opt')];
+    let activeText = 'Not Applicable';
+    opts.forEach(o => {
+        const isMatch = String(o.dataset.val || '').trim() === strVal;
+        o.classList.toggle('active', isMatch);
+        if (isMatch) activeText = o.textContent;
+    });
+
+    const textSpan = el.querySelector('.msb .ms-selected-text');
+    const rightClear = el.querySelector('.msb .ms-right-clear');
+    if (textSpan) {
+        textSpan.textContent = activeText;
+        textSpan.classList.toggle('ph', !strVal);
+    }
+    if (rightClear) {
+        rightClear.style.display = strVal ? 'inline-block' : 'none';
+    }
 }
 
 function getNameById(key, id) {
     if (!id) return '';
-    const items = OPT[key] || [];
+    const items = ALL_OPT[key] || OPT[key] || [];
     const found = items.find(x => String(x.id).trim() == String(id).trim() || String(x.name).trim() == String(id).trim());
     return found ? found.name : id;
 }
 
 function getNamesList(key, arr) {
     if (!arr) return [];
-    const list = Array.isArray(arr) ? arr : String(arr).split(',');
+    const list = Array.isArray(arr) ? arr : String(arr).split(',').filter(Boolean);
     return list.map(id => getNameById(key, id)).filter(Boolean);
 }
 
 document.addEventListener('click', e => {
-    if (!e.target.closest('.ms')) qAll('.ms').forEach(m => m.classList.remove('open'));
+    if (!e.target.closest('.ms')) qAll('.ms').forEach(m => closeMSInstance(m));
     if (!e.target.closest('.dd')) q('#exp')?.classList.remove('open');
 });
 
@@ -1237,37 +2133,392 @@ TPK.forEach(k => buildTP(tpEl(k)));
     }
 });
 
-// Populate Top Filters
-[['fCo', 'Company', 'company'], ['fBr', 'Branch', 'branch'], ['fDp', 'Department', 'dept']].forEach(([i, l, k]) => {
-    const sel = q('#' + i);
+/* ===== TOP FILTER BAR: PROJECT-STYLE SEARCHABLE & CASCADING DROPDOWNS ===== */
+const F_MS = { fCo: [], fBr: [], fDp: [], fEmp: [] };
+const F_OPT = {
+    fCo: [...ALL_OPT.company],
+    fBr: [...ALL_OPT.branch],
+    fDp: [...ALL_OPT.dept],
+    fEmp: [...ALL_OPT.emp]
+};
+
+function buildSingleFilterDropdown(elSelector, selectSelector, defaultPlaceholder, optionsList) {
+    const el = q(elSelector);
+    const sel = q(selectSelector);
+    if (!el) return;
+
     if (sel) {
-        sel.innerHTML = `<option value="">${l}: All</option>` + (OPT[k] || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('');
+        sel.innerHTML = `<option value="">${defaultPlaceholder}</option>` +
+            optionsList.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
     }
-});
+
+    const allOpts = [{ id: '', name: defaultPlaceholder }, ...optionsList];
+    el.innerHTML = `
+        <button type="button" class="msb">
+            <span class="ms-selected-text ph">${defaultPlaceholder}</span>
+            <input type="text" class="ms-inline-search" placeholder="Type to search..." autocomplete="off">
+            <span class="ms-right-clear" title="Clear filter">×</span>
+            <span class="ms-caret">▾</span>
+        </button>
+        <div class="msl">
+            ${allOpts.map(o => `<div class="ms-single-opt ${o.id === '' ? 'active' : ''}" data-val="${o.id}" data-search="${o.name.toLowerCase().replace(/"/g, '&quot;')}">${o.name}</div>`).join('')}
+            <div class="ms-empty" style="display:none;">No matching results</div>
+        </div>
+    `;
+
+    const msb = el.querySelector('.msb');
+    const searchInp = el.querySelector('.ms-inline-search');
+    const rightClear = el.querySelector('.ms-right-clear');
+    const msl = el.querySelector('.msl');
+
+    msb.onclick = e => {
+        if (e.target.closest('.ms-right-clear')) return;
+        if (e.target === searchInp && el.classList.contains('open')) return;
+        const wasOpen = el.classList.contains('open');
+        qAll('.ms').forEach(m => { if (m !== el) closeMSInstance(m); });
+        if (wasOpen && e.target !== searchInp) {
+            closeMSInstance(el);
+        } else {
+            el.classList.add('open');
+            if (searchInp) {
+                searchInp.value = '';
+                filterMSList(el, '');
+                setTimeout(() => searchInp.focus(), 10);
+            }
+        }
+    };
+
+    if (searchInp) {
+        searchInp.onclick = e => e.stopPropagation();
+        searchInp.onkeydown = e => {
+            e.stopPropagation();
+            if (e.key === 'Escape') closeMSInstance(el);
+        };
+        searchInp.oninput = e => filterMSList(el, e.target.value);
+    }
+
+    if (rightClear) {
+        rightClear.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            setSingleFilterValue(elSelector, selectSelector, defaultPlaceholder, '');
+            page = 1;
+            render();
+        };
+    }
+
+    msl.onclick = e => {
+        const opt = e.target.closest('.ms-single-opt');
+        if (!opt) return;
+        setSingleFilterValue(elSelector, selectSelector, defaultPlaceholder, opt.dataset.val || '');
+        closeMSInstance(el);
+        page = 1;
+        render();
+    };
+}
+
+function setSingleFilterValue(elSelector, selectSelector, defaultPlaceholder, val) {
+    const el = q(elSelector);
+    const sel = q(selectSelector);
+    const strVal = String(val || '').trim();
+    if (sel) sel.value = strVal;
+    if (!el) return;
+
+    const opts = [...el.querySelectorAll('.ms-single-opt')];
+    let activeText = defaultPlaceholder;
+    opts.forEach(o => {
+        const isMatch = String(o.dataset.val || '').trim() === strVal;
+        o.classList.toggle('active', isMatch);
+        if (isMatch) activeText = o.textContent;
+    });
+
+    const textSpan = el.querySelector('.msb .ms-selected-text');
+    const rightClear = el.querySelector('.msb .ms-right-clear');
+    if (textSpan) {
+        textSpan.textContent = activeText;
+        textSpan.classList.toggle('ph', !strVal);
+    }
+    if (rightClear) {
+        rightClear.style.display = strVal ? 'inline-block' : 'none';
+    }
+}
+
+function buildMultiFilterMS(el, fKey, label) {
+    if (!el) return;
+    F_MS[fKey] = [];
+    el.dataset.label = label;
+    el.innerHTML = `
+        <button type="button" class="msb">
+            <span class="ms-selected-text ph">${label}: All</span>
+            <input type="text" class="ms-inline-search" placeholder="Type to search ${label.toLowerCase()}..." autocomplete="off">
+            <span class="ms-right-clear" title="Clear filter">×</span>
+            <span class="ms-caret">▾</span>
+        </button>
+        <div class="msl"></div>
+    `;
+
+    const msb = el.querySelector('.msb');
+    const searchInp = el.querySelector('.ms-inline-search');
+    const rightClear = el.querySelector('.ms-right-clear');
+    const msl = el.querySelector('.msl');
+
+    rebuildMultiFilterOptions(el, fKey, label);
+
+    msb.onclick = e => {
+        if (e.target.closest('.ms-right-clear')) return;
+        if (e.target === searchInp && el.classList.contains('open')) return;
+        const wasOpen = el.classList.contains('open');
+        qAll('.ms').forEach(m => { if (m !== el) closeMSInstance(m); });
+        if (wasOpen && e.target !== searchInp) {
+            closeMSInstance(el);
+        } else {
+            el.classList.add('open');
+            if (searchInp) {
+                searchInp.value = '';
+                filterMSList(el, '');
+                setTimeout(() => searchInp.focus(), 10);
+            }
+        }
+    };
+
+    if (searchInp) {
+        searchInp.onclick = e => e.stopPropagation();
+        searchInp.onkeydown = e => {
+            e.stopPropagation();
+            if (e.key === 'Escape') closeMSInstance(el);
+        };
+        searchInp.oninput = e => filterMSList(el, e.target.value);
+    }
+
+    if (rightClear) {
+        rightClear.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            F_MS[fKey] = [];
+            renderMultiFilterMS(el, fKey, label);
+            applyTopFilterCascade(fKey);
+            page = 1;
+            render();
+        };
+    }
+
+    msl.onclick = e => {
+        const clearRow = e.target.closest('.ms-clear-row');
+        if (clearRow) {
+            e.preventDefault();
+            e.stopPropagation();
+            F_MS[fKey] = [];
+            if (searchInp) {
+                searchInp.value = '';
+                filterMSList(el, '');
+            }
+            renderMultiFilterMS(el, fKey, label);
+            applyTopFilterCascade(fKey);
+            page = 1;
+            render();
+        }
+    };
+
+    msl.onchange = e => {
+        const allCbs = [...el.querySelectorAll('.msl label[data-item] input[value]')];
+        const visibleCbs = allCbs.filter(c => c.closest('label').style.display !== 'none');
+        if (e.target.dataset.all != null) {
+            visibleCbs.forEach(c => c.checked = e.target.checked);
+        }
+        F_MS[fKey] = allCbs.filter(c => c.checked).map(c => String(c.value).trim());
+        renderMultiFilterMS(el, fKey, label);
+        applyTopFilterCascade(fKey);
+        page = 1;
+        render();
+    };
+
+    renderMultiFilterMS(el, fKey, label);
+}
+
+function rebuildMultiFilterOptions(el, fKey, label) {
+    if (!el) return;
+    const msl = el.querySelector('.msl');
+    if (!msl) return;
+    const items = F_OPT[fKey] || [];
+    const selectedSet = new Set((F_MS[fKey] || []).map(x => String(x).trim()));
+
+    if (items.length === 0) {
+        msl.innerHTML = `<div class="ms-empty">No ${(label || fKey).toLowerCase()} available</div>`;
+        return;
+    }
+
+    msl.innerHTML =
+        `<div class="ms-clear-row" style="display:none;"><span>×</span> <span>Clear all</span></div>` +
+        `<label class="ms-all-row"><input type="checkbox" data-all> <span>Select All</span></label>` +
+        items.map(o => {
+            const isChecked = selectedSet.has(String(o.id).trim()) ? 'checked' : '';
+            return `<label data-item data-search="${(o.name + ' ' + o.id).toLowerCase().replace(/"/g, '&quot;')}"><input type="checkbox" value="${o.id}" ${isChecked}> <span>${o.name}</span></label>`;
+        }).join('') +
+        `<div class="ms-empty" style="display:none;">No matching results</div>`;
+}
+
+function renderMultiFilterMS(el, fKey, label) {
+    if (!el) return;
+    const a = (F_MS[fKey] || []).map(x => String(x).trim());
+    const items = F_OPT[fKey] || [];
+    const names = items.filter(x => a.includes(String(x.id).trim())).map(x => x.name);
+    const textSpan = el.querySelector('.msb .ms-selected-text');
+    const rightClear = el.querySelector('.msb .ms-right-clear');
+    const clearRow = el.querySelector('.msl .ms-clear-row');
+    const lbl = label || el.dataset.label || fKey;
+
+    if (textSpan) {
+        if (names.length === 0) {
+            textSpan.textContent = `${lbl}: All`;
+            textSpan.classList.add('ph');
+            el.querySelector('.msb').title = '';
+        } else if (names.length === 1) {
+            textSpan.textContent = names[0];
+            textSpan.classList.remove('ph');
+            el.querySelector('.msb').title = names[0];
+        } else {
+            textSpan.textContent = `${names.length} ${lbl.toLowerCase()} selected`;
+            textSpan.classList.remove('ph');
+            el.querySelector('.msb').title = names.join(', ');
+        }
+    }
+
+    if (rightClear) rightClear.style.display = a.length > 0 ? 'inline-block' : 'none';
+    if (clearRow) clearRow.style.display = a.length > 0 ? 'flex' : 'none';
+
+    const cbs = [...el.querySelectorAll('.msl label[data-item] input[value]')];
+    cbs.forEach(c => c.checked = a.includes(String(c.value).trim()));
+
+    const all = el.querySelector('[data-all]');
+    if (all) {
+        const visibleCbs = cbs.filter(c => c.closest('label').style.display !== 'none');
+        all.checked = visibleCbs.length > 0 && visibleCbs.every(c => c.checked);
+    }
+}
+
+function applyTopFilterCascade(changedKey) {
+    const selCo = (F_MS['fCo'] || []).map(x => String(x).trim()).filter(Boolean);
+
+    // 1. Filter Branch by Company
+    if (selCo.length === 0) {
+        F_OPT.fBr = [...ALL_OPT.branch];
+    } else {
+        const matchedBr = ALL_OPT.branch.filter(b =>
+            !b.companyCodes?.length || b.companyCodes.some(c => selCo.includes(c))
+        );
+        F_OPT.fBr = matchedBr.length > 0 ? matchedBr : [...ALL_OPT.branch];
+    }
+    const validBrSet = new Set(F_OPT.fBr.map(b => b.id));
+    F_MS['fBr'] = (F_MS['fBr'] || []).filter(id => validBrSet.has(String(id).trim()));
+    const fBrEl = q('#msFBr');
+    if (fBrEl) {
+        rebuildMultiFilterOptions(fBrEl, 'fBr', 'Branch');
+        renderMultiFilterMS(fBrEl, 'fBr', 'Branch');
+    }
+
+    // 2. Filter Department by Company & Branch
+    const selBr = (F_MS['fBr'] || []).map(x => String(x).trim()).filter(Boolean);
+    if (selCo.length === 0 && selBr.length === 0) {
+        F_OPT.fDp = [...ALL_OPT.dept];
+    } else {
+        let matchedDp = ALL_OPT.dept.filter(d => {
+            const okCo = selCo.length === 0 || !d.companyCodes?.length || d.companyCodes.some(c => selCo.includes(c));
+            const okBr = selBr.length === 0 || (d.branchCodes && d.branchCodes.some(b => selBr.includes(b)));
+            return okCo && okBr;
+        });
+        if (matchedDp.length === 0 && selCo.length > 0) {
+            matchedDp = ALL_OPT.dept.filter(d => !d.companyCodes?.length || d.companyCodes.some(c => selCo.includes(c)));
+        }
+        F_OPT.fDp = matchedDp.length > 0 ? matchedDp : [...ALL_OPT.dept];
+    }
+    const validDpSet = new Set(F_OPT.fDp.map(d => d.id));
+    F_MS['fDp'] = (F_MS['fDp'] || []).filter(id => validDpSet.has(String(id).trim()));
+    const fDpEl = q('#msFDp');
+    if (fDpEl) {
+        rebuildMultiFilterOptions(fDpEl, 'fDp', 'Department');
+        renderMultiFilterMS(fDpEl, 'fDp', 'Department');
+    }
+
+    // 3. Filter Employee by Company, Branch & Department
+    const selDp = (F_MS['fDp'] || []).map(x => String(x).trim()).filter(Boolean);
+    if (selCo.length === 0 && selBr.length === 0 && selDp.length === 0) {
+        F_OPT.fEmp = [...ALL_OPT.emp];
+    } else {
+        F_OPT.fEmp = ALL_OPT.emp.filter(e => {
+            const okCo = selCo.length === 0 || selCo.includes(e.companyCode);
+            const okBr = selBr.length === 0 || selBr.includes(e.branchCode);
+            const okDp = selDp.length === 0 || selDp.includes(e.deptCode);
+            return okCo && okBr && okDp;
+        });
+    }
+    const validEmpSet = new Set(F_OPT.fEmp.map(e => e.id));
+    F_MS['fEmp'] = (F_MS['fEmp'] || []).filter(id => validEmpSet.has(String(id).trim()));
+    const fEmpEl = q('#msFEmp');
+    if (fEmpEl) {
+        rebuildMultiFilterOptions(fEmpEl, 'fEmp', 'Employee');
+        renderMultiFilterMS(fEmpEl, 'fEmp', 'Employee');
+    }
+}
 
 // Populate Shift Type Dropdowns
-if (DB_DATA.shiftType && DB_DATA.shiftType.length) {
-    if (q('#fType')) q('#fType').innerHTML = `<option value="">Shift type: All</option>` + DB_DATA.shiftType.map(st => `<option value="${st.id}">${st.name}</option>`).join('');
-    if (q('#type')) q('#type').innerHTML = DB_DATA.shiftType.map(st => `<option value="${st.id}">${st.name}</option>`).join('');
-} else {
-    if (q('#fType')) q('#fType').innerHTML = `<option value="">Shift type: All</option><option value="01">Day Shift</option><option value="02">Night Shift</option>`;
-    if (q('#type')) q('#type').innerHTML = `<option value="01">Day Shift</option><option value="02">Night Shift</option>`;
+const shiftTypeOpts = (DB_DATA.shiftType && DB_DATA.shiftType.length)
+    ? DB_DATA.shiftType.map(st => ({ id: String(st.id).trim(), name: st.name }))
+    : [{ id: '01', name: 'Day Shift' }, { id: '02', name: 'Night Shift' }];
+
+if (q('#type')) {
+    q('#type').innerHTML = shiftTypeOpts.map(st => `<option value="${st.id}">${st.name}</option>`).join('');
 }
 
-// Populate Overtime Rules Dropdown
-if (DB_DATA.otRule && DB_DATA.otRule.length) {
-    if (q('#otRule')) q('#otRule').innerHTML = `<option value="">Not Applicable</option>` + DB_DATA.otRule.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-} else {
-    if (q('#otRule')) q('#otRule').innerHTML = `<option value="">Not Applicable</option><option value="01">After Shift End</option><option value="02">Shift End + After Grace</option>`;
-}
+buildSingleFilterDropdown('#msFType', '#fType', 'Shift type: All', shiftTypeOpts);
+buildMultiFilterMS(q('#msFCo'), 'fCo', 'Company');
+buildMultiFilterMS(q('#msFBr'), 'fBr', 'Branch');
+buildMultiFilterMS(q('#msFDp'), 'fDp', 'Department');
+buildMultiFilterMS(q('#msFEmp'), 'fEmp', 'Employee');
+buildSingleFilterDropdown('#msFSt', '#fSt', 'Activity status: All', [
+    { id: 'Active', name: 'Active' },
+    { id: 'Inactive', name: 'Inactive' }
+]);
+
+// Populate Overtime Rules Searchable Dropdown
+buildOtRuleSearchDropdown();
 
 /* ===== REAL DATA STATE & AJAX ===== */
 let shifts = [];
+let expandedShifts = new Set();
 let page = 1;
 let editing = null;
+let formDetails = []; // Details array inside Master Modal
+let detailModalMode = 'add'; // 'add' | 'edit' | 'view'
+let detailEditIndex = -1; // Index in formDetails (or -1 if standalone DB edit)
+let standaloneShiftCode = null; // Set when adding/editing a detail directly from the expanded main list
 let liveDashboardCounts = null;
 let sortCol = 'id';
 let sortDir = 'asc';
+
+function toggleExpand(shiftId) {
+    const key = String(shiftId);
+    if (expandedShifts.has(key)) {
+        expandedShifts.delete(key);
+    } else {
+        expandedShifts.add(key);
+    }
+    render();
+}
+window.toggleExpand = toggleExpand;
+
+function toggleExpandAll() {
+    const L = filtered();
+    const allExpanded = L.length > 0 && L.every(s => expandedShifts.has(String(s.id)));
+    if (allExpanded) {
+        expandedShifts.clear();
+        if (q('#btnExpandAll')) q('#btnExpandAll').textContent = '⊞ Expand All Details';
+    } else {
+        L.forEach(s => expandedShifts.add(String(s.id)));
+        if (q('#btnExpandAll')) q('#btnExpandAll').textContent = '⊟ Collapse All Details';
+    }
+    render();
+}
+window.toggleExpandAll = toggleExpandAll;
 
 function sortBy(col, forceDir) {
     if (forceDir) {
@@ -1316,27 +2567,6 @@ function getSortVal(s, col) {
             return (s.name || '').toLowerCase();
         case 'type':
             return (s.type || '').toLowerCase();
-        case 'start':
-            return mins(s.start);
-        case 'late':
-            return mins(s.late);
-        case 'absent':
-            return mins(s.absent);
-        case 'bf':
-            return mins(s.bf);
-        case 'early':
-            return mins(s.early);
-        case 'appl': {
-            const compCount = Array.isArray(s.company) ? s.company.length : 0;
-            const brCount = Array.isArray(s.branch) ? s.branch.length : 0;
-            const deptCount = Array.isArray(s.dept) ? s.dept.length : 0;
-            const empCount = Array.isArray(s.emp) ? s.emp.length : 0;
-            return (compCount * 1000) + (brCount * 100) + (deptCount * 10) + empCount;
-        }
-        case 'otRule':
-            return (s.otRule || '').toLowerCase();
-        case 'eff':
-            return s.eff ? new Date(s.eff).getTime() : 0;
         case 'status':
             return (s.status || '').toLowerCase();
         default:
@@ -1346,32 +2576,40 @@ function getSortVal(s, col) {
 
 let applPopTimeout = null;
 
-function hoverAppl(targetEl, shiftId, type) {
+function hoverApplDetail(targetEl, sourceType, shiftIdOrIdx, detailIdx, type) {
     clearTimeout(applPopTimeout);
     const pop = q('#applFloatingPopover');
     if (!pop) return;
 
-    const s = shifts.find(x => x.id == shiftId);
-    if (!s) return;
+    let dObj = null;
+    if (sourceType === 'modal') {
+        dObj = formDetails[detailIdx];
+    } else {
+        const s = shifts.find(x => String(x.id) === String(shiftIdOrIdx));
+        if (s && Array.isArray(s.details)) {
+            dObj = s.details[detailIdx];
+        }
+    }
+    if (!dObj) return;
 
     let title = '';
     let items = [];
     let countBadge = '';
 
     if (type === 'co') {
-        items = getNamesList('company', s.company);
+        items = getNamesList('company', dObj.company);
         countBadge = items.length ? items.length + ' Company' : 'All';
         title = '🏢 Company (' + countBadge + ')';
     } else if (type === 'br') {
-        items = getNamesList('branch', s.branch);
+        items = getNamesList('branch', dObj.branch);
         countBadge = items.length ? items.length + ' Branch' : 'All';
         title = '🌿 Branch (' + countBadge + ')';
     } else if (type === 'dp') {
-        items = getNamesList('dept', s.dept);
+        items = getNamesList('dept', dObj.dept);
         countBadge = items.length ? items.length + ' Department' : 'All';
         title = '📁 Department (' + countBadge + ')';
     } else if (type === 'em') {
-        items = getNamesList('emp', s.emp);
+        items = getNamesList('emp', dObj.emp);
         countBadge = items.length ? items.length + ' Employee' : 'All';
         title = '👤 Employee (' + countBadge + ')';
     }
@@ -1395,7 +2633,6 @@ function hoverAppl(targetEl, shiftId, type) {
 
     pop.style.display = 'block';
 
-    // Position fixed calculation (relative to viewport)
     const rect = targetEl.getBoundingClientRect();
     const popWidth = 260;
     const popMaxHeight = 220;
@@ -1403,12 +2640,9 @@ function hoverAppl(targetEl, shiftId, type) {
     let left = rect.right + 10;
     let top = rect.top - 5;
 
-    // Flip to left if overflowing right of window
     if (left + popWidth > window.innerWidth - 12) {
         left = Math.max(10, rect.left - popWidth - 10);
     }
-
-    // Shift upwards if overflowing bottom of viewport
     if (top + popMaxHeight > window.innerHeight - 12) {
         top = Math.max(10, window.innerHeight - popMaxHeight - 12);
     }
@@ -1417,7 +2651,7 @@ function hoverAppl(targetEl, shiftId, type) {
     pop.style.left = left + 'px';
     pop.style.top = top + 'px';
 }
-window.hoverAppl = hoverAppl;
+window.hoverApplDetail = hoverApplDetail;
 
 function hideApplPopover() {
     clearTimeout(applPopTimeout);
@@ -1427,6 +2661,43 @@ function hideApplPopover() {
     }, 150);
 }
 window.hideApplPopover = hideApplPopover;
+
+function renderApplBadges(d, sourceType, shiftId, detailIdx) {
+    const compNames = getNamesList('company', d.company);
+    const brNames = getNamesList('branch', d.branch);
+    const deptNames = getNamesList('dept', d.dept);
+    const empNames = getNamesList('emp', d.emp);
+
+    const compLabel = compNames.length ? (compNames.length + ' Co') : 'All Co';
+    const brLabel = brNames.length ? (brNames.length + ' Br') : 'All Br';
+    const deptLabel = deptNames.length ? (deptNames.length + ' Dept') : 'All Dept';
+    const empLabel = empNames.length ? (empNames.length + ' Emp') : 'All Emp';
+
+    return `
+        <div class="appl-lines">
+            <div class="appl-item ${compNames.length ? 'has-data' : ''}" 
+                 onmouseenter="hoverApplDetail(this, '${sourceType}', '${shiftId}', ${detailIdx}, 'co')" 
+                 onmouseleave="hideApplPopover()">
+                <span class="appl-icon">🏢</span><span>${compLabel}</span>
+            </div>
+            <div class="appl-item ${brNames.length ? 'has-data' : ''}" 
+                 onmouseenter="hoverApplDetail(this, '${sourceType}', '${shiftId}', ${detailIdx}, 'br')" 
+                 onmouseleave="hideApplPopover()">
+                <span class="appl-icon">🌿</span><span>${brLabel}</span>
+            </div>
+            <div class="appl-item ${deptNames.length ? 'has-data' : ''}" 
+                 onmouseenter="hoverApplDetail(this, '${sourceType}', '${shiftId}', ${detailIdx}, 'dp')" 
+                 onmouseleave="hideApplPopover()">
+                <span class="appl-icon">📁</span><span>${deptLabel}</span>
+            </div>
+            <div class="appl-item ${empNames.length ? 'has-data' : ''}" 
+                 onmouseenter="hoverApplDetail(this, '${sourceType}', '${shiftId}', ${detailIdx}, 'em')" 
+                 onmouseleave="hideApplPopover()">
+                <span class="appl-icon">👤</span><span>${empLabel}</span>
+            </div>
+        </div>
+    `;
+}
 
 function loadShifts() {
     jQuery.ajax({
@@ -1462,23 +2733,72 @@ function loadDashboardCount() {
     });
 }
 
+const updateTopFilterCascade = applyTopFilterCascade;
+
+function detailMatchesTopFilter(d) {
+    const selCo = (F_MS['fCo'] || []).map(x => String(x).trim()).filter(Boolean);
+    const selBr = (F_MS['fBr'] || []).map(x => String(x).trim()).filter(Boolean);
+    const selDp = (F_MS['fDp'] || []).map(x => String(x).trim()).filter(Boolean);
+    const selEmp = (F_MS['fEmp'] || []).map(x => String(x).trim()).filter(Boolean);
+
+    if (selCo.length > 0) {
+        const dCo = (d.company || []).map(x => String(x).trim()).filter(Boolean);
+        if (dCo.length === 0 || !dCo.some(c => selCo.includes(c))) return false;
+    }
+    if (selBr.length > 0) {
+        const dBr = (d.branch || []).map(x => String(x).trim()).filter(Boolean);
+        if (dBr.length === 0 || !dBr.some(b => selBr.includes(b))) return false;
+    }
+    if (selDp.length > 0) {
+        const dDp = (d.dept || []).map(x => String(x).trim()).filter(Boolean);
+        if (dDp.length === 0 || !dDp.some(dp => selDp.includes(dp))) return false;
+    }
+    if (selEmp.length > 0) {
+        const dEmp = (d.emp || []).map(x => String(x).trim()).filter(Boolean);
+        if (dEmp.length === 0 || !dEmp.some(em => selEmp.includes(em))) return false;
+    }
+    return true;
+}
+
+function hasActiveDetailTopFilter() {
+    return (
+        (F_MS['fCo'] && F_MS['fCo'].length > 0) ||
+        (F_MS['fBr'] && F_MS['fBr'].length > 0) ||
+        (F_MS['fDp'] && F_MS['fDp'].length > 0) ||
+        (F_MS['fEmp'] && F_MS['fEmp'].length > 0)
+    );
+}
+
+function getFilteredDetails(s) {
+    const allDetails = (Array.isArray(s.details) ? s.details : []).map((d, idx) => ({ ...d, _origIdx: idx }));
+    if (!hasActiveDetailTopFilter()) return allDetails;
+    return allDetails.filter(d => detailMatchesTopFilter(d));
+}
+
 function filtered() {
     const qSearch = ((q('#ls')?.value || '') + ' ' + (q('#gs')?.value || '')).toLowerCase().trim();
-    const fTypeVal = q('#fType')?.value || '';
-    const fCoVal = q('#fCo')?.value || '';
-    const fBrVal = q('#fBr')?.value || '';
-    const fDpVal = q('#fDp')?.value || '';
-    const fStVal = q('#fSt')?.value || '';
+    const fTypeVal = (q('#fType')?.value || '').trim();
+    const fStVal = (q('#fSt')?.value || '').trim();
+    const detailFilterOn = hasActiveDetailTopFilter();
 
     const list = shifts.filter(s => {
-        if (fTypeVal && s.typeId !== fTypeVal && s.type !== fTypeVal) return false;
-        if (fCoVal && !(s.company || []).includes(fCoVal)) return false;
-        if (fBrVal && !(s.branch || []).includes(fBrVal)) return false;
-        if (fDpVal && !(s.dept || []).includes(fDpVal)) return false;
-        if (fStVal && s.status !== fStVal) return false;
+        if (fTypeVal && String(s.typeId).trim() !== fTypeVal && String(s.type).trim() !== fTypeVal) return false;
+        if (fStVal && String(s.status).trim() !== fStVal) return false;
+
+        if (detailFilterOn) {
+            const matchingDetails = getFilteredDetails(s);
+            if (matchingDetails.length === 0) return false;
+        }
+
         if (qSearch) {
-            const rowStr = JSON.stringify(s).toLowerCase();
-            return qSearch.split(' ').every(w => rowStr.includes(w));
+            const detailNames = (s.details || []).map(d => [
+                ...getNamesList('company', d.company),
+                ...getNamesList('branch', d.branch),
+                ...getNamesList('dept', d.dept),
+                ...getNamesList('emp', d.emp)
+            ].join(' ')).join(' ');
+            const rowStr = (JSON.stringify(s) + ' ' + detailNames).toLowerCase();
+            return qSearch.split(/\s+/).every(w => rowStr.includes(w));
         }
         return true;
     });
@@ -1508,74 +2828,114 @@ function render() {
     const tb = q('#tb');
     if (tb) {
         tb.innerHTML = rows.map(s => {
-            const compNames = getNamesList('company', s.company);
-            const brNames = getNamesList('branch', s.branch);
-            const deptNames = getNamesList('dept', s.dept);
-            const empNames = getNamesList('emp', s.emp);
-
-            const compCount = compNames.length;
-            const brCount = brNames.length;
-            const deptCount = deptNames.length;
-            const empCount = empNames.length;
-
-            const compLabel = compCount ? (compCount + ' Company') : 'All Company';
-            const brLabel = brCount ? (brCount + ' Branch') : 'All Branch';
-            const deptLabel = deptCount ? (deptCount + ' Department') : 'All Department';
-            const empLabel = empCount ? (empCount + ' Employee' + (empCount > 1 ? 's' : '')) : 'All Employees';
-
+            const details = getFilteredDetails(s);
+            const isExp = expandedShifts.has(String(s.id));
             const typeClass = (s.type || '').toLowerCase().includes('night') ? 'Night' : 'Day';
             const statusClass = (s.status || '') === 'Active' ? 'Active' : 'Inactive';
 
-            return `<tr>
-    <td data-l="Shift ID" class="id">${s.id}</td>
-    <td data-l="Shift name" class="wide"><div class="nm">${s.name || ''}</div></td>
-    <td data-l="Type"><span class="pill ${typeClass}">${s.type || ''}</span>${s.cross ? '<span class="pill cm" title="Cross midnight">+1d</span>' : ''}</td>
-    <td data-l="Start – End" class="wide">${short(s.start)} – ${short(s.end)}</td>
-    <td data-l="Late">${short(s.late)}</td>
-    <td data-l="Absent">${short(s.absent)}</td>
-    <td data-l="Break">${short(s.bf)} – ${short(s.bt)}</td>
-    <td data-l="Early leave before">${short(s.early)}</td>
-    <td data-l="Applicable to" class="appl-td">
-        <div class="appl-lines">
-            <div class="appl-item ${compCount ? 'has-data' : ''}" 
-                 title="${compNames.length ? compNames.join(', ') : 'All Company'}" 
-                 onmouseenter="hoverAppl(this, '${s.id}', 'co')" 
-                 onmouseleave="hideApplPopover()">
-                <span class="appl-icon">🏢</span>
-                <span class="appl-lbl">${compLabel}</span>
-            </div>
-            <div class="appl-item ${brCount ? 'has-data' : ''}" 
-                 title="${brNames.length ? brNames.join(', ') : 'All Branch'}" 
-                 onmouseenter="hoverAppl(this, '${s.id}', 'br')" 
-                 onmouseleave="hideApplPopover()">
-                <span class="appl-icon">🌿</span>
-                <span class="appl-lbl">${brLabel}</span>
-            </div>
-            <div class="appl-item ${deptCount ? 'has-data' : ''}" 
-                 title="${deptNames.length ? deptNames.join(', ') : 'All Department'}" 
-                 onmouseenter="hoverAppl(this, '${s.id}', 'dp')" 
-                 onmouseleave="hideApplPopover()">
-                <span class="appl-icon">📁</span>
-                <span class="appl-lbl">${deptLabel}</span>
-            </div>
-            <div class="appl-item ${empCount ? 'has-data' : ''}" 
-                 title="${empNames.length ? empNames.join(', ') : 'All Employee'}" 
-                 onmouseenter="hoverAppl(this, '${s.id}', 'em')" 
-                 onmouseleave="hideApplPopover()">
-                <span class="appl-icon">👤</span>
-                <span class="appl-lbl">${empLabel}</span>
-            </div>
-        </div>
-    </td>
-    <td data-l="Overtime">${(!s.otRule || s.otRule === 'Not Applicable') ? '<span class="sub">N/A</span>' : `${s.otRule}<div class="sub">Max ${s.otMax || 4}h/day</div>`}</td>
-    <td data-l="Effective From">${s.eff || ''}</td>
-    <td data-l="Status"><span class="pill ${statusClass}">${s.status || ''}</span></td>
-    <td class="act">
-        <button type="button" class="ib" onclick="openForm('${s.id}')">✎ Edit</button> 
-        <button type="button" class="ib d" onclick="del('${s.id}')">🗑 Delete</button>
-    </td>
-</tr>`;
-        }).join('') || '<tr><td colspan="13" class="empty">No shifts found</td></tr>';
+            const firstTimingText = details.length > 0
+                ? `${short(details[0].start)} – ${short(details[0].end)}${details.length > 1 ? ` (+${details.length - 1} more)` : ''}`
+                : 'No timing added';
+
+            const masterRowHtml = `
+                <tr class="master-row ${isExp ? 'expanded' : ''}">
+                    <td>
+                        <button type="button" class="btn-expand ${isExp ? 'open' : ''}" onclick="toggleExpand('${s.id}')" title="Click to expand/collapse shift details">
+                            <span class="exp-icon">▶</span>
+                            <span>${details.length}</span>
+                        </button>
+                    </td>
+                    <td class="id">${s.id}</td>
+                    <td><div class="nm">${s.name || ''}</div></td>
+                    <td><span class="pill ${typeClass}">${s.type || ''}</span></td>
+                    <td>${s.desc || '<span class="sub">—</span>'}</td>
+                    <td>
+                        <span class="pill sched-cnt" onclick="toggleExpand('${s.id}')" title="Click to view all schedules">
+                            🕒 ${details.length} Schedule${details.length === 1 ? '' : 's'}
+                        </span>
+                        <div class="sub" style="margin-top:2px;">${firstTimingText}</div>
+                    </td>
+                    <td>${s.rem || '<span class="sub">—</span>'}</td>
+                    <td><span class="pill ${statusClass}">${s.status || 'Active'}</span></td>
+                    <td class="act">
+                        <button type="button" class="ib" onclick="openStandaloneDetailModal('add', '${s.id}')" title="Add new timing to this shift">＋ Add Time</button>
+                        <button type="button" class="ib" onclick="openForm('${s.id}')">✎ Edit</button>
+                        <button type="button" class="ib d" onclick="del('${s.id}')">🗑 Delete</button>
+                    </td>
+                </tr>
+            `;
+
+            if (!isExp) return masterRowHtml;
+
+            const detailRowsHtml = details.length > 0
+                ? details.map((d, dispIdx) => {
+                    const origIdx = d._origIdx !== undefined ? d._origIdx : dispIdx;
+                    const dStatusClass = (d.status || 'Active') === 'Active' ? 'Active' : 'Inactive';
+                    const otText = (!d.otRule || d.otRule === 'Not Applicable' || !d.otRuleId)
+                        ? '<span class="sub">Not Applicable</span>'
+                        : `<b>${d.otRule}</b><div class="sub">After ${d.otAfter || 60}m | Max ${d.otMax || 4}h | Min ${d.otMin || 50}m</div>`;
+                    return `
+                        <tr>
+                            <td><b>#${dispIdx + 1}</b></td>
+                            <td>
+                                <b>${short(d.start)} – ${short(d.end)}</b>
+                                ${d.cross ? '<span class="pill cm" title="Cross midnight">+1d</span>' : ''}
+                            </td>
+                            <td>${short(d.late)}</td>
+                            <td>${short(d.absent)}</td>
+                            <td>${short(d.bf)} – ${short(d.bt)}</td>
+                            <td>${short(d.early)}</td>
+                            <td class="appl-td">${renderApplBadges(d, 'main', s.id, origIdx)}</td>
+                            <td>${otText}</td>
+                            <td>${formatDateDDMMYYYY(d.eff)}</td>
+                            <td>${d.rem || '<span class="sub">—</span>'}</td>
+                            <td><span class="pill ${dStatusClass}">${d.status || 'Active'}</span></td>
+                            <td class="act">
+                                <button type="button" class="ib v" onclick="openStandaloneDetailModal('view', '${s.id}', ${origIdx})">👁 View</button>
+                                <button type="button" class="ib" onclick="openStandaloneDetailModal('edit', '${s.id}', ${origIdx})">✎ Edit</button>
+                                <button type="button" class="ib d" onclick="deleteStandaloneDetail('${s.id}', ${origIdx})">🗑 Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('')
+                : `<tr><td colspan="12" class="empty">No timing details added for this shift yet. Click "＋ Add Time" to add one.</td></tr>`;
+
+            const expandRowHtml = `
+                <tr class="detail-expand-row">
+                    <td colspan="9">
+                        <div class="sub-card">
+                            <div class="sub-card-head">
+                                <span>📋 Shift Details &amp; Timings for: ${s.name} (Shift ID: ${s.id})</span>
+                                <button type="button" class="ib" onclick="openStandaloneDetailModal('add', '${s.id}')">＋ Add Shift Details</button>
+                            </div>
+                            <div class="shift-table-wrap">
+                                <table class="detail-sub-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Start – End</th>
+                                            <th>Late</th>
+                                            <th>Absent</th>
+                                            <th>Break</th>
+                                            <th>Early Leave Before</th>
+                                            <th>Applicable To</th>
+                                            <th>Overtime Rules</th>
+                                            <th>Effective From</th>
+                                            <th>Remarks</th>
+                                            <th>Activity Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${detailRowsHtml}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+
+            return masterRowHtml + expandRowHtml;
+        }).join('') || '<tr><td colspan="9" class="empty">No shifts found</td></tr>';
     }
 
     const info = q('#info');
@@ -1605,8 +2965,8 @@ function kpis() {
     const totalCount = liveDashboardCounts?.TotalShifts ?? shifts.length;
     const dayCount = liveDashboardCounts?.DayShifts ?? c(s => (s.type || '').toLowerCase().includes('day') || s.typeId == '01' || s.typeId == '1');
     const nightCount = liveDashboardCounts?.NightShifts ?? c(s => (s.type || '').toLowerCase().includes('night') || s.typeId == '02' || s.typeId == '2');
-    const otCount = liveDashboardCounts?.WithOvertimeRules ?? c(s => s.otRule && s.otRule !== 'Not Applicable' && s.otRuleId);
-    const crossCount = liveDashboardCounts?.CrossMidnight ?? c(s => s.cross);
+    const otCount = liveDashboardCounts?.WithOvertimeRules ?? c(s => (s.details || []).some(d => d.otRuleId));
+    const crossCount = liveDashboardCounts?.CrossMidnight ?? c(s => (s.details || []).some(d => d.cross));
     const activeCount = liveDashboardCounts?.Active ?? c(s => s.status === 'Active');
     const inactiveCount = liveDashboardCounts?.Inactive ?? c(s => s.status === 'Inactive');
 
@@ -1630,18 +2990,31 @@ function kf(x) {
     resetF(1);
     if (x) {
         const [a, b] = x.split('=');
-        const target = q('#' + a);
-        if (target) target.value = b;
+        if (a === 'fType') {
+            setSingleFilterValue('#msFType', '#fType', 'Shift type: All', b);
+        } else if (a === 'fSt') {
+            setSingleFilterValue('#msFSt', '#fSt', 'Activity status: All', b);
+        }
     }
     page = 1;
     render();
 }
 
 function resetF(qFlag) {
-    ['fType', 'fSt', 'fCo', 'fBr', 'fDp'].forEach(i => {
-        const el = q('#' + i);
-        if (el) el.selectedIndex = 0;
-    });
+    setSingleFilterValue('#msFType', '#fType', 'Shift type: All', '');
+    setSingleFilterValue('#msFSt', '#fSt', 'Activity status: All', '');
+    F_MS.fCo = [];
+    F_MS.fBr = [];
+    F_MS.fDp = [];
+    F_MS.fEmp = [];
+
+    const fCoEl = q('#msFCo');
+    if (fCoEl) {
+        rebuildMultiFilterOptions(fCoEl, 'fCo', 'Company');
+        renderMultiFilterMS(fCoEl, 'fCo', 'Company');
+    }
+    applyTopFilterCascade('fCo');
+
     if (!qFlag) {
         if (q('#ls')) q('#ls').value = '';
         if (q('#gs')) q('#gs').value = '';
@@ -1650,41 +3023,100 @@ function resetF(qFlag) {
     }
 }
 
-['fType', 'fCo', 'fBr', 'fDp', 'fSt', 'pp'].forEach(i => {
-    const el = q('#' + i);
-    if (el) el.onchange = () => { page = 1; render(); };
-});
+const ppSelectEl = q('#pp');
+if (ppSelectEl) {
+    ppSelectEl.onchange = () => {
+        page = 1;
+        render();
+    };
+}
 
 ['ls', 'gs'].forEach(i => {
     const el = q('#' + i);
     if (el) el.oninput = () => { page = 1; render(); };
 });
 
-/* ===== ADD / EDIT FORM POPUP ===== */
+/* ===== RENDER DETAILS GRID INSIDE MASTER MODAL ===== */
+function renderModalDetailsGrid() {
+    const tb = q('#modalDetailsTb');
+    if (!tb) return;
+
+    if (!formDetails || formDetails.length === 0) {
+        tb.innerHTML = `<tr><td colspan="12" class="empty">No shift details added yet. Click <b>"＋ Add Shift Details"</b> above to add timing &amp; attendance rules.</td></tr>`;
+        return;
+    }
+
+    tb.innerHTML = formDetails.map((d, idx) => {
+        const dStatusClass = (d.status || 'Active') === 'Active' ? 'Active' : 'Inactive';
+        const otRuleName = d.otRuleId
+            ? ((DB_DATA.otRule || []).find(r => String(r.id) === String(d.otRuleId))?.name || d.otRule || d.otRuleId)
+            : 'Not Applicable';
+        const otText = (!d.otRuleId || otRuleName === 'Not Applicable')
+            ? '<span class="sub">N/A</span>'
+            : `<b>${otRuleName}</b><div class="sub">Max ${d.otMax || 4}h/day</div>`;
+
+        return `
+            <tr>
+                <td><b>#${idx + 1}</b></td>
+                <td>
+                    <b>${short(d.start)} – ${short(d.end)}</b>
+                    ${d.cross ? '<span class="pill cm" title="Cross midnight">+1d</span>' : ''}
+                </td>
+                <td>${short(d.late)}</td>
+                <td>${short(d.absent)}</td>
+                <td>${short(d.bf)} – ${short(d.bt)}</td>
+                <td>${short(d.early)}</td>
+                <td class="appl-td">${renderApplBadges(d, 'modal', 'modal', idx)}</td>
+                <td>${otText}</td>
+                <td>${formatDateDDMMYYYY(d.eff)}</td>
+                <td>${d.rem || '<span class="sub">—</span>'}</td>
+                <td><span class="pill ${dStatusClass}">${d.status || 'Active'}</span></td>
+                <td class="act">
+                    <button type="button" class="ib v" onclick="openDetailModal('view', ${idx})">👁 View</button>
+                    <button type="button" class="ib" onclick="openDetailModal('edit', ${idx})">✎ Edit</button>
+                    <button type="button" class="ib d" onclick="removeModalDetail(${idx})">🗑 Delete</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function removeModalDetail(idx) {
+    const d = formDetails[idx];
+    const timeLabel = d ? `(${short(d.start)} – ${short(d.end)})` : `#${idx + 1}`;
+    openDeleteModal(
+        'Delete Shift Detail',
+        `Remove timing schedule ${timeLabel}?`,
+        'This timing row will be removed from the shift details list.',
+        function () {
+            formDetails.splice(idx, 1);
+            renderModalDetailsGrid();
+            toast('Timing detail removed from list');
+        }
+    );
+}
+window.removeModalDetail = removeModalDetail;
+
+/* ===== MASTER MODAL (ADD / EDIT SHIFT) ===== */
 function openForm(id) {
-    editing = id ? shifts.find(x => x.id == id) : null;
+    standaloneShiftCode = null;
+    editing = id ? shifts.find(x => String(x.id) == String(id)) : null;
     if (editing) {
         if (q('#mt')) q('#mt').textContent = 'Edit Shift – ' + editing.id;
         if (q('#type')) q('#type').value = editing.typeId || (editing.type.toLowerCase().includes('night') ? '02' : '01');
         if (q('#sid')) q('#sid').value = editing.id;
         if (q('#name')) q('#name').value = editing.name || '';
         if (q('#desc')) q('#desc').value = editing.desc || '';
-        setTP(tpEl('start'), editing.start);
-        setTP(tpEl('end'), editing.end);
-        setTP(tpEl('late'), editing.late);
-        setTP(tpEl('absent'), editing.absent);
-        setTP(tpEl('bf'), editing.bf);
-        setTP(tpEl('bt'), editing.bt);
-        setTP(tpEl('early'), editing.early);
-        if (q('#cross')) q('#cross').checked = !!editing.cross;
-        setMS('company', editing.company || []);
-        setMS('branch', editing.branch || []);
-        setMS('dept', editing.dept || []);
-        setMS('emp', editing.emp || []);
-        if (q('#otRule')) q('#otRule').value = editing.otRuleId || '';
-        if (q('#eff')) q('#eff').value = editing.eff || new Date().toISOString().slice(0, 10);
         if (q('#status')) q('#status').value = editing.status || 'Active';
         if (q('#rem')) q('#rem').value = editing.rem || '';
+        formDetails = Array.isArray(editing.details) ? editing.details.map(d => ({
+            ...d,
+            company: [...(d.company || [])],
+            branch: [...(d.branch || [])],
+            dept: [...(d.dept || [])],
+            emp: [...(d.emp || [])]
+        })) : [];
+        renderModalDetailsGrid();
         q('#ov')?.classList.add('open');
         document.body.style.overflow = 'hidden';
     } else {
@@ -1693,24 +3125,11 @@ function openForm(id) {
         if (q('#sid')) q('#sid').value = '';
         if (q('#name')) q('#name').value = '';
         if (q('#desc')) q('#desc').value = '';
-        setTP(tpEl('start'), '09:00:00 AM');
-        setTP(tpEl('end'), '06:00:00 PM');
-        setTP(tpEl('late'), '09:15:00 AM');
-        setTP(tpEl('absent'), '11:00:00 AM');
-        setTP(tpEl('bf'), '01:00:00 PM');
-        setTP(tpEl('bt'), '02:00:00 PM');
-        setTP(tpEl('early'), '05:30:00 PM');
-        if (q('#cross')) q('#cross').checked = false;
-        setMS('company', []);
-        setMS('branch', []);
-        setMS('dept', []);
-        setMS('emp', []);
-        if (q('#otRule')) q('#otRule').selectedIndex = 0;
-        if (q('#eff')) q('#eff').value = new Date().toISOString().slice(0, 10);
         if (q('#status')) q('#status').value = 'Active';
         if (q('#rem')) q('#rem').value = '';
+        formDetails = [];
+        renderModalDetailsGrid();
 
-        // Fetch real next shift code from database
         jQuery.get('/HRMATDShifts/GenerateNextCode', function (code) {
             if (q('#sid')) q('#sid').value = code || '';
         });
@@ -1726,36 +3145,156 @@ const closeForm = () => {
     document.body.style.overflow = '';
 };
 
-document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeForm();
-});
+/* ===== DETAILS MODAL (ADD / EDIT / VIEW DETAILS) ===== */
+function setDetailModalReadonly(isReadonly) {
+    qAll('#detailModalBody .inp, #detailModalBody input[type="checkbox"]').forEach(el => {
+        el.disabled = isReadonly;
+    });
+    qAll('#detailModalBody .tp').forEach(el => {
+        el.classList.toggle('readonly', isReadonly);
+    });
+    qAll('#detailModalBody .ms').forEach(el => {
+        el.classList.toggle('readonly', isReadonly);
+    });
+    const saveBtn = q('#btnSaveDetailItem');
+    if (saveBtn) saveBtn.style.display = isReadonly ? 'none' : 'inline-block';
+}
 
-/* ===== SAVE SHIFT TO DATABASE ===== */
-function save() {
-    const sid = (q('#sid')?.value || '').trim();
-    const name = (q('#name')?.value || '').trim();
+function populateDetailModalFields(d) {
+    if (d) {
+        setTP(tpEl('start'), d.start || '09:00:00 AM');
+        setTP(tpEl('end'), d.end || '06:00:00 PM');
+        setTP(tpEl('late'), d.late || '09:15:00 AM');
+        setTP(tpEl('absent'), d.absent || '11:00:00 AM');
+        setTP(tpEl('bf'), d.bf || '01:00:00 PM');
+        setTP(tpEl('bt'), d.bt || '02:00:00 PM');
+        setTP(tpEl('early'), d.early || '05:30:00 PM');
+        if (q('#cross')) q('#cross').checked = !!d.cross;
+
+        MS['company'] = (Array.isArray(d.company) ? [...d.company] : (d.company ? String(d.company).split(',').filter(Boolean) : [])).map(x => String(x).trim());
+        MS['branch'] = (Array.isArray(d.branch) ? [...d.branch] : (d.branch ? String(d.branch).split(',').filter(Boolean) : [])).map(x => String(x).trim());
+        MS['dept'] = (Array.isArray(d.dept) ? [...d.dept] : (d.dept ? String(d.dept).split(',').filter(Boolean) : [])).map(x => String(x).trim());
+        MS['emp'] = (Array.isArray(d.emp) ? [...d.emp] : (d.emp ? String(d.emp).split(',').filter(Boolean) : [])).map(x => String(x).trim());
+
+        const compEl = q('[data-ms="company"]');
+        if (compEl) {
+            rebuildMSOptions(compEl, 'company', compEl.dataset.label || 'Company');
+            renderMS(compEl, 'company', compEl.dataset.label || 'Company');
+        }
+        applyCascade('company', true);
+
+        setOtRuleValue(d.otRuleId || '');
+        if (q('#otAfter')) q('#otAfter').value = d.otAfter ?? 60;
+        if (q('#otMax')) q('#otMax').value = d.otMax ?? 4;
+        if (q('#otMin')) q('#otMin').value = d.otMin ?? 50;
+        if (q('#woOT')) q('#woOT').value = d.woOT || 'Not Applicable';
+        if (q('#hOT')) q('#hOT').value = d.hOT || 'Not Applicable';
+        if (q('#eff')) q('#eff').value = d.eff || new Date().toISOString().slice(0, 10);
+        if (q('#dStatus')) q('#dStatus').value = d.status || 'Active';
+        if (q('#dRem')) q('#dRem').value = d.rem || '';
+    } else {
+        setTP(tpEl('start'), '09:00:00 AM');
+        setTP(tpEl('end'), '06:00:00 PM');
+        setTP(tpEl('late'), '09:15:00 AM');
+        setTP(tpEl('absent'), '11:00:00 AM');
+        setTP(tpEl('bf'), '01:00:00 PM');
+        setTP(tpEl('bt'), '02:00:00 PM');
+        setTP(tpEl('early'), '05:30:00 PM');
+        if (q('#cross')) q('#cross').checked = false;
+
+        MS['company'] = [];
+        MS['branch'] = [];
+        MS['dept'] = [];
+        MS['emp'] = [];
+        const compEl = q('[data-ms="company"]');
+        if (compEl) {
+            rebuildMSOptions(compEl, 'company', compEl.dataset.label || 'Company');
+            renderMS(compEl, 'company', compEl.dataset.label || 'Company');
+        }
+        applyCascade('company', false);
+
+        setOtRuleValue('');
+        if (q('#otAfter')) q('#otAfter').value = 60;
+        if (q('#otMax')) q('#otMax').value = 4;
+        if (q('#otMin')) q('#otMin').value = 50;
+        if (q('#woOT')) q('#woOT').value = 'Not Applicable';
+        if (q('#hOT')) q('#hOT').value = 'Not Applicable';
+        if (q('#eff')) q('#eff').value = new Date().toISOString().slice(0, 10);
+        if (q('#dStatus')) q('#dStatus').value = 'Active';
+        if (q('#dRem')) q('#dRem').value = '';
+    }
+}
+
+function openDetailModal(mode, idx = -1) {
+    standaloneShiftCode = null;
+    detailModalMode = mode || 'add';
+    detailEditIndex = idx;
+
+    const d = (idx >= 0 && formDetails[idx]) ? formDetails[idx] : null;
+    populateDetailModalFields(d);
+
+    if (mode === 'view') {
+        if (q('#detailModalTitle')) q('#detailModalTitle').textContent = 'View Shift Timing & Rules Details';
+        setDetailModalReadonly(true);
+    } else if (mode === 'edit') {
+        if (q('#detailModalTitle')) q('#detailModalTitle').textContent = 'Edit Shift Timing & Rules Details';
+        setDetailModalReadonly(false);
+    } else {
+        if (q('#detailModalTitle')) q('#detailModalTitle').textContent = 'Add Shift Timing & Rules Details';
+        setDetailModalReadonly(false);
+    }
+
+    qAll('#ovDetail .err').forEach(e => e.classList.remove('err'));
+    q('#ovDetail')?.classList.add('open');
+}
+window.openDetailModal = openDetailModal;
+
+// Open Detail Modal directly from Expanded Main Table
+function openStandaloneDetailModal(mode, shiftId, detailIdx = -1) {
+    standaloneShiftCode = String(shiftId);
+    detailModalMode = mode || 'add';
+    detailEditIndex = detailIdx;
+
+    const s = shifts.find(x => String(x.id) === String(shiftId));
+    const d = (s && Array.isArray(s.details) && detailIdx >= 0) ? s.details[detailIdx] : null;
+    populateDetailModalFields(d);
+
+    if (mode === 'view') {
+        if (q('#detailModalTitle')) q('#detailModalTitle').textContent = `View Details – Shift ${shiftId}`;
+        setDetailModalReadonly(true);
+    } else if (mode === 'edit') {
+        if (q('#detailModalTitle')) q('#detailModalTitle').textContent = `Edit Details – Shift ${shiftId}`;
+        setDetailModalReadonly(false);
+    } else {
+        if (q('#detailModalTitle')) q('#detailModalTitle').textContent = `Add New Timing Details – Shift ${shiftId}`;
+        setDetailModalReadonly(false);
+    }
+
+    qAll('#ovDetail .err').forEach(e => e.classList.remove('err'));
+    q('#ovDetail')?.classList.add('open');
+}
+window.openStandaloneDetailModal = openStandaloneDetailModal;
+
+function closeDetailModal() {
+    q('#ovDetail')?.classList.remove('open');
+}
+window.closeDetailModal = closeDetailModal;
+
+function saveDetailItem() {
     const eff = (q('#eff')?.value || '').trim();
-
-    const bad = [
-        ['#sid', !sid],
-        ['#name', !name],
-        ['#eff', !eff]
-    ].filter(b => b[1]);
-
-    qAll('.err').forEach(e => e.classList.remove('err'));
-    if (bad.length) {
-        bad.forEach(b => q(b[0])?.classList.add('err'));
-        return toast('Please fill in the required fields highlighted in red');
+    qAll('#ovDetail .err').forEach(e => e.classList.remove('err'));
+    if (!eff) {
+        q('#eff')?.classList.add('err');
+        return toast('Please select Effective From Date');
     }
 
     const startVal = getTP(tpEl('start'));
     const endVal = getTP(tpEl('end'));
     const isCross = q('#cross')?.checked || false;
     if (mins(startVal) > mins(endVal) && !isCross) {
-        return toast('End is earlier than start – please check "Cross Midnight / Next Day"');
+        return toast('End time is earlier than Start time – please check "Cross Midnight / Next Day"');
     }
 
-    // Calculate lunch break hour
     let lunchBreak = 0;
     try {
         const bfM = mins(getTP(tpEl('bf')));
@@ -1765,6 +3304,225 @@ function save() {
         lunchBreak = Math.round((diff / 60) * 100) / 100;
     } catch (e) { }
 
+    const otRuleIdVal = q('#otRule')?.value || '';
+    const otRuleNameVal = otRuleIdVal
+        ? ((DB_DATA.otRule || []).find(r => String(r.id) === String(otRuleIdVal))?.name || otRuleIdVal)
+        : 'Not Applicable';
+
+    const existingObj = standaloneShiftCode
+        ? (shifts.find(x => String(x.id) === String(standaloneShiftCode))?.details?.[detailEditIndex] || null)
+        : (detailEditIndex >= 0 ? formDetails[detailEditIndex] : null);
+
+    const detailItem = {
+        autoId: existingObj ? (existingObj.autoId || 0) : 0,
+        shiftCode: standaloneShiftCode || (q('#sid')?.value || '').trim(),
+        start: startVal,
+        end: endVal,
+        late: getTP(tpEl('late')),
+        absent: getTP(tpEl('absent')),
+        bf: getTP(tpEl('bf')),
+        bt: getTP(tpEl('bt')),
+        breakHour: lunchBreak,
+        early: getTP(tpEl('early')),
+        cross: isCross,
+        company: [...(MS['company'] || [])],
+        branch: [...(MS['branch'] || [])],
+        dept: [...(MS['dept'] || [])],
+        emp: [...(MS['emp'] || [])],
+        otRuleId: otRuleIdVal,
+        otRule: otRuleNameVal,
+        otAfter: +(q('#otAfter')?.value || 60),
+        otMax: +(q('#otMax')?.value || 4),
+        otMin: +(q('#otMin')?.value || 50),
+        woOT: q('#woOT')?.value || 'Not Applicable',
+        hOT: q('#hOT')?.value || 'Not Applicable',
+        eff: eff,
+        status: q('#dStatus')?.value || 'Active',
+        rem: (q('#dRem')?.value || '').trim()
+    };
+
+    // If opened directly from the main table's expanded row, save immediately via API
+    if (standaloneShiftCode) {
+        const payload = mapDetailToBackendDto(detailItem, standaloneShiftCode);
+        const token = q('input[name="__RequestVerificationToken"]')?.value || '';
+        jQuery.ajax({
+            url: '/HRMATDShifts/SaveDetail',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            headers: token ? { 'RequestVerificationToken': token } : {},
+            success: function (res) {
+                if (res.isSuccess) {
+                    toast(res.message || 'Shift detail saved successfully');
+                    expandedShifts.add(String(standaloneShiftCode));
+                    closeDetailModal();
+                    loadShifts();
+                    loadDashboardCount();
+                } else {
+                    toast(res.message || 'Failed to save shift detail');
+                }
+            },
+            error: function (xhr) {
+                toast('Failed to save detail: ' + (xhr.responseText || xhr.statusText));
+            }
+        });
+        return;
+    }
+
+    // Otherwise update Master Modal's formDetails array
+    if (detailModalMode === 'edit' && detailEditIndex >= 0) {
+        formDetails[detailEditIndex] = detailItem;
+        toast('Shift detail updated in list');
+    } else {
+        formDetails.push(detailItem);
+        toast('Shift detail added to list');
+    }
+
+    renderModalDetailsGrid();
+    closeDetailModal();
+}
+window.saveDetailItem = saveDetailItem;
+
+let pendingDeleteCallback = null;
+
+function openDeleteModal(title, heading, message, onConfirm) {
+    if (q('#deleteModalTitle')) q('#deleteModalTitle').textContent = title || 'Delete Confirmation';
+    if (q('#deleteModalHeading')) q('#deleteModalHeading').textContent = heading || 'Are you sure you want to delete?';
+    if (q('#deleteModalMessage')) q('#deleteModalMessage').textContent = message || 'This action will permanently remove the selected record.';
+    pendingDeleteCallback = typeof onConfirm === 'function' ? onConfirm : null;
+    q('#ovDelete')?.classList.add('open');
+}
+window.openDeleteModal = openDeleteModal;
+
+function closeDeleteModal() {
+    q('#ovDelete')?.classList.remove('open');
+    pendingDeleteCallback = null;
+}
+window.closeDeleteModal = closeDeleteModal;
+
+function confirmDeleteAction() {
+    const fn = pendingDeleteCallback;
+    closeDeleteModal();
+    if (typeof fn === 'function') {
+        fn();
+    }
+}
+window.confirmDeleteAction = confirmDeleteAction;
+
+function deleteStandaloneDetail(shiftId, detailIdx) {
+    const s = shifts.find(x => String(x.id) === String(shiftId));
+    const d = s?.details?.[detailIdx];
+    if (!d) return;
+
+    openDeleteModal(
+        'Delete Shift Timing Detail',
+        `Delete timing schedule (${short(d.start)} – ${short(d.end)})?`,
+        `This timing schedule will be permanently deleted from Shift ${shiftId} (${s?.name || ''}).`,
+        function () {
+            const token = q('input[name="__RequestVerificationToken"]')?.value || '';
+            jQuery.ajax({
+                url: '/HRMATDShifts/DeleteDetail',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(d.autoId),
+                headers: token ? { 'RequestVerificationToken': token } : {},
+                success: function (res) {
+                    if (res.isSuccess) {
+                        toast(res.message || 'Shift detail deleted');
+                        loadShifts();
+                        loadDashboardCount();
+                    } else {
+                        toast(res.message || 'Failed to delete detail');
+                    }
+                },
+                error: function (xhr) {
+                    toast('Error deleting detail: ' + (xhr.responseText || xhr.statusText));
+                }
+            });
+        }
+    );
+}
+window.deleteStandaloneDetail = deleteStandaloneDetail;
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        if (q('#ovDelete')?.classList.contains('open')) {
+            closeDeleteModal();
+        } else if (q('#ovDetail')?.classList.contains('open')) {
+            closeDetailModal();
+        } else {
+            closeForm();
+        }
+    }
+});
+
+function toIsoDateTime(dateStr, time12h) {
+    const baseDate = toIsoDateStr(dateStr);
+    const m = (time12h || '').match(/(\d+):(\d+):(\d+)\s*(AM|PM)/i);
+    if (!m) return `${baseDate}T09:00:00`;
+    let h = parseInt(m[1], 10);
+    const min = m[2].padStart(2, '0');
+    const sec = m[3].padStart(2, '0');
+    const ampm = m[4].toUpperCase();
+    if (ampm === 'PM' && h < 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return `${baseDate}T${String(h).padStart(2, '0')}:${min}:${sec}`;
+}
+
+function mapDetailToBackendDto(d, shiftCode) {
+    const effDate = toIsoDateStr(d.eff);
+    return {
+        AutoId: d.autoId || 0,
+        ShiftCode: shiftCode,
+        ShiftStartTime: toIsoDateTime(effDate, d.start),
+        ShiftEndTime: toIsoDateTime(effDate, d.end),
+        LateTime: toIsoDateTime(effDate, d.late),
+        AbsentTime: toIsoDateTime(effDate, d.absent),
+        LunchOutTime: toIsoDateTime(effDate, d.bf),
+        LunchInTime: toIsoDateTime(effDate, d.bt),
+        LunchBreakHour: d.breakHour || 0,
+        EarlyLeaveTime: d.early || '',
+        IsCrossMidnight: !!d.cross,
+        CompanyIdsList: d.company || [],
+        BranchIdsList: d.branch || [],
+        DepartmentIdsList: d.dept || [],
+        EmployeeIdsList: d.emp || [],
+        OvertimeRuleID: d.otRuleId || '',
+        OTGraceTime: d.otAfter ?? 60,
+        MaxOTPerDay: d.otMax ?? 4,
+        MinOTMinutes: d.otMin ?? 50,
+        WeeklyOffOTRule: d.woOT || 'Not Applicable',
+        HolidayOTRule: d.hOT || 'Not Applicable',
+        Wef: `${effDate}T00:00:00`,
+        IsActiveStatus: d.status || 'Active',
+        IsActive: (d.status || 'Active') === 'Active',
+        Remarks: d.rem || ''
+    };
+}
+
+/* ===== SAVE SHIFT (MASTER + DETAILS) TO DATABASE ===== */
+function save() {
+    const sid = (q('#sid')?.value || '').trim();
+    const name = (q('#name')?.value || '').trim();
+
+    const bad = [
+        ['#sid', !sid],
+        ['#name', !name]
+    ].filter(b => b[1]);
+
+    qAll('#ov .err').forEach(e => e.classList.remove('err'));
+    if (bad.length) {
+        bad.forEach(b => q(b[0])?.classList.add('err'));
+        return toast('Please fill in the required fields highlighted in red');
+    }
+
+    if (!formDetails || formDetails.length === 0) {
+        return toast('Please add at least one Shift Detail (Timing & Rules) using "＋ Add Shift Details"');
+    }
+
+    const mappedDetails = formDetails.map(d => mapDetailToBackendDto(d, sid));
+    const firstD = mappedDetails[0];
+
     const postData = {
         AutoId: editing ? editing.autoId : 0,
         ShiftCode: sid,
@@ -1772,23 +3530,25 @@ function save() {
         ShiftShortName: q('#desc')?.value.trim() || '',
         Description: q('#desc')?.value.trim() || '',
         ShiftTypeId: q('#type')?.value || '',
-        ShiftStartTime: startVal,
-        ShiftEndTime: endVal,
-        LateTime: getTP(tpEl('late')),
-        AbsentTime: getTP(tpEl('absent')),
-        LunchOutTime: getTP(tpEl('bf')),
-        LunchInTime: getTP(tpEl('bt')),
-        LunchBreakHour: lunchBreak,
-        EarlyLeaveTime: getTP(tpEl('early')),
-        IsCrossMidnight: isCross,
-        CompanyIdsList: MS['company'] || [],
-        BranchIdsList: MS['branch'] || [],
-        DepartmentIdsList: MS['dept'] || [],
-        EmployeeIdsList: MS['emp'] || [],
-        OvertimeRuleID: q('#otRule')?.value || '',
-        Wef: eff,
         IsActiveStatus: q('#status')?.value || 'Active',
-        Remarks: q('#rem')?.value.trim() || ''
+        IsActive: (q('#status')?.value || 'Active') === 'Active',
+        Remarks: q('#rem')?.value.trim() || '',
+        ShiftStartTime: firstD.ShiftStartTime,
+        ShiftEndTime: firstD.ShiftEndTime,
+        LateTime: firstD.LateTime,
+        AbsentTime: firstD.AbsentTime,
+        LunchOutTime: firstD.LunchOutTime,
+        LunchInTime: firstD.LunchInTime,
+        LunchBreakHour: firstD.LunchBreakHour,
+        EarlyLeaveTime: firstD.EarlyLeaveTime,
+        IsCrossMidnight: firstD.IsCrossMidnight,
+        CompanyIdsList: firstD.CompanyIdsList,
+        BranchIdsList: firstD.BranchIdsList,
+        DepartmentIdsList: firstD.DepartmentIdsList,
+        EmployeeIdsList: firstD.EmployeeIdsList,
+        OvertimeRuleID: firstD.OvertimeRuleID,
+        Wef: firstD.Wef,
+        Details: mappedDetails
     };
 
     const token = q('input[name="__RequestVerificationToken"]')?.value || '';
@@ -1796,11 +3556,13 @@ function save() {
     jQuery.ajax({
         url: '/HRMATDShifts/Setup',
         type: 'POST',
-        data: postData,
+        contentType: 'application/json',
+        data: JSON.stringify(postData),
         headers: token ? { 'RequestVerificationToken': token } : {},
         success: function (res) {
             if (res.isSuccess) {
                 toast(res.message || 'Shift saved successfully');
+                expandedShifts.add(String(res.lastCode || sid));
                 closeForm();
                 loadShifts();
                 loadDashboardCount();
@@ -1816,28 +3578,35 @@ function save() {
 
 /* ===== DELETE SHIFT FROM DATABASE ===== */
 function del(id) {
-    if (confirm('Delete shift ' + id + '?')) {
-        const token = q('input[name="__RequestVerificationToken"]')?.value || '';
-        jQuery.ajax({
-            url: '/HRMATDShifts/Delete',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify([id]),
-            headers: token ? { 'RequestVerificationToken': token } : {},
-            success: function (res) {
-                if (res.isSuccess) {
-                    toast(res.message || 'Shift deleted successfully');
-                    loadShifts();
-                    loadDashboardCount();
-                } else {
-                    toast(res.message || 'Delete failed');
+    const s = shifts.find(x => String(x.id) === String(id));
+    const shiftTitle = s && s.name ? `${s.name} (Shift ID: ${id})` : `Shift ${id}`;
+    openDeleteModal(
+        'Delete Shift Confirmation',
+        `Are you sure to delete ${shiftTitle}?`,
+        'This will permanently delete the master shift and all of its associated timing schedules.',
+        function () {
+            const token = q('input[name="__RequestVerificationToken"]')?.value || '';
+            jQuery.ajax({
+                url: '/HRMATDShifts/Delete',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify([id]),
+                headers: token ? { 'RequestVerificationToken': token } : {},
+                success: function (res) {
+                    if (res.isSuccess) {
+                        toast(res.message || 'Shift deleted successfully');
+                        loadShifts();
+                        loadDashboardCount();
+                    } else {
+                        toast(res.message || 'Delete failed');
+                    }
+                },
+                error: function (xhr) {
+                    toast('Failed to delete: ' + (xhr.responseText || xhr.statusText));
                 }
-            },
-            error: function (xhr) {
-                toast('Failed to delete: ' + (xhr.responseText || xhr.statusText));
-            }
-        });
-    }
+            });
+        }
+    );
 }
 
 function toast(m) {
@@ -1849,27 +3618,6 @@ function toast(m) {
     t.h = setTimeout(() => t.style.display = 'none', 3000);
 }
 
-function exportCSV() {
-    const H = ['ID', 'Name', 'Type', 'Start', 'End', 'Late', 'Absent', 'Break From', 'Break To', 'Early Leave', 'Applicable To', 'Overtime', 'Effective From', 'Status'];
-    const r = filtered().map(s => {
-        const compNames = getNamesList('company', s.company);
-        const brNames = getNamesList('branch', s.branch);
-        const deptNames = getNamesList('dept', s.dept);
-        const compStr = compNames.length ? compNames.join('; ') : 'All Company';
-        const brStr = brNames.length ? brNames.join('; ') : 'All Branch';
-        const deptStr = deptNames.length ? deptNames.join('; ') : 'All Department';
-        const applSummary = `Company: ${compStr} | Branch: ${brStr} | Department: ${deptStr}`;
-        return [
-            s.id, s.name, s.type, s.start, s.end, s.late, s.absent, s.bf, s.bt, s.early, applSummary, s.otRule, s.eff, s.status
-        ].map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',');
-    });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([[H.join(','), ...r].join('\n')], { type: 'text/csv;charset=utf-8;' }));
-    a.download = 'shifts.csv';
-    a.click();
-}
-
-// Expose handlers globally so onclick attributes work
 window.openForm = openForm;
 window.closeForm = closeForm;
 window.save = save;
@@ -1877,18 +3625,16 @@ window.del = del;
 window.resetF = resetF;
 window.kf = kf;
 window.gp = gp;
-window.exportCSV = exportCSV;
 
-// Initial Load from Database on page ready
 function initPage() {
     renderSortHeaders();
-    
+
     const floatingPop = q('#applFloatingPopover');
     if (floatingPop) {
         floatingPop.onmouseenter = () => clearTimeout(applPopTimeout);
         floatingPop.onmouseleave = hideApplPopover;
     }
-    
+
     loadShifts();
     loadDashboardCount();
 }
@@ -1899,4 +3645,5 @@ if (document.readyState === 'loading') {
     initPage();
 }
 </script>
+<script src="~/js/pages/HrmAtdShiftsReport.js" asp-append-version="true"></script>
 }

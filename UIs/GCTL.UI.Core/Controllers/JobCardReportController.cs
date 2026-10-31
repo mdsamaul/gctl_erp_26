@@ -49,6 +49,8 @@ namespace GCTL.UI.Core.Controllers
                 filter.AccessCodeId = LoginInfo.AccessCode;
 
                 var data = await _service.GetReportDataAsync(filter);
+                // Clear flat Rows list after EmployeeGroups are built to halve JSON payload size
+                data.Rows = new System.Collections.Generic.List<JobCardReportRowDto>();
                 return Json(new { success = true, data });
             }
             catch (Exception ex)

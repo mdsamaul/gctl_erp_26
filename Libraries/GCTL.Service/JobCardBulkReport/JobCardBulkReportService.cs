@@ -430,7 +430,7 @@ namespace GCTL.Service.JobCardBulkReport
                     // Attendance Summary Box
                     var sumTable = new Table(UnitValue.CreatePercentArray(new float[] { 28, 14, 38, 20 }))
                         .SetWidth(UnitValue.CreatePointValue(270))
-                        .SetMarginTop(8)
+                        .SetMarginTop(22.5f)
                         .SetBorder(new SolidBorder(ColorConstants.GRAY, 0.5f));
 
                     void AddSumCell(string lbl, string val)

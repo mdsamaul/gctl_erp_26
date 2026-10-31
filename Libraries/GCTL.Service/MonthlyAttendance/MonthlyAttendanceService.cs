@@ -17,6 +17,8 @@ using iText.Kernel.Font;
 using iText.Kernel.Geom;
 using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas;
+using iText.Kernel.Pdf.Event;
+using iText.Kernel.Pdf.Xobject;
 using iText.Layout;
 using iText.Layout.Borders;
 using iText.Layout.Element;
@@ -611,20 +613,79 @@ namespace GCTL.Service.MonthlyAttendance
         // ═════════════════════════════════════════════════════════════
         // ── PDF Export (iText7) - Landscape Layout
         // ═════════════════════════════════════════════════════════════
+        private class NumberedFooterHandler : AbstractPdfDocumentEventHandler
+        {
+            private readonly PdfFormXObject _totalTemplate;
+            private readonly PdfFont _font;
+            private readonly string _printTimeStr;
+
+            public NumberedFooterHandler(PdfDocument pdfDoc, PdfFont font, string printTimeStr)
+            {
+                _font = font;
+                _printTimeStr = printTimeStr;
+                _totalTemplate = new PdfFormXObject(new iText.Kernel.Geom.Rectangle(0, 0, 50, 15));
+            }
+
+            protected override void OnAcceptedEvent(AbstractPdfDocumentEvent @event)
+            {
+                var docEvent = (PdfDocumentEvent)@event;
+                var pdfDoc = docEvent.GetDocument();
+                var page = docEvent.GetPage();
+                var pageNumber = pdfDoc.GetPageNumber(page);
+                var pageSize = page.GetPageSize();
+
+                var canvas = new PdfCanvas(page.NewContentStreamAfter(), page.GetResources(), pdfDoc);
+
+                // Left: Print Datetime
+                canvas.BeginText()
+                    .SetFontAndSize(_font, 7f)
+                    .MoveText(18, 12)
+                    .ShowText($"Print Datetime: {_printTimeStr}")
+                    .EndText();
+
+                // Right: Page X of Y
+                string pageStr = $"Page {pageNumber} of ";
+                float strWidth = _font.GetWidth(pageStr, 7f);
+                float xPos = pageSize.GetWidth() - 18 - 45;
+
+                canvas.BeginText()
+                    .SetFontAndSize(_font, 7f)
+                    .MoveText(xPos, 12)
+                    .ShowText(pageStr)
+                    .EndText();
+
+                canvas.AddXObjectAt(_totalTemplate, xPos + strWidth, 12);
+                canvas.Release();
+            }
+
+            public void WriteTotal(PdfDocument pdfDoc)
+            {
+                var total = pdfDoc.GetNumberOfPages();
+                var canvas = new Canvas(_totalTemplate, pdfDoc);
+                canvas.SetFont(_font).SetFontSize(7f);
+                canvas.ShowTextAligned(total.ToString(), 0, 0, TextAlignment.LEFT);
+                canvas.Close();
+            }
+        }
+
         public async Task<byte[]> GeneratePdfAsync(MonthlyAttendanceFilterDto filter, string? logoPhysicalPath = null)
         {
             var data = await GetReportDataAsync(filter);
             if (data == null || !data.DepartmentGroups.Any())
                 return Array.Empty<byte>();
 
-            using var firstPassStream = new MemoryStream();
+            using var outputStream = new MemoryStream();
             var regularFont = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
             var boldFont = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
 
-            using (var writer = new PdfWriter(firstPassStream))
+            using (var writer = new PdfWriter(outputStream))
             using (var pdfDoc = new PdfDocument(writer))
             {
                 pdfDoc.SetDefaultPageSize(PageSize.A4.Rotate());
+                string printTimeStr = DateTime.Now.ToString("dd/MM/yyyy hh:mm:ss tt");
+                var footerHandler = new NumberedFooterHandler(pdfDoc, regularFont, printTimeStr);
+                pdfDoc.AddEventHandler(PdfDocumentEvent.END_PAGE, footerHandler);
+
                 using (var doc = new PdfDocument2(pdfDoc))
                 {
                     doc.SetMargins(15, 15, 25, 15);
@@ -816,45 +877,11 @@ namespace GCTL.Service.MonthlyAttendance
                         doc.Add(table);
                     }
 
+                    footerHandler.WriteTotal(pdfDoc);
                     doc.Close();
                 }
             }
 
-            // 2nd pass: stamp page numbers and print datetime on each page
-            using var readerStream = new MemoryStream(firstPassStream.ToArray());
-            using var reader = new PdfReader(readerStream);
-            using var outputStream = new MemoryStream();
-            using var outputWriter = new PdfWriter(outputStream);
-            using var outputPdf = new PdfDocument(reader, outputWriter);
-
-            var totalPages = outputPdf.GetNumberOfPages();
-            string printTimeStr = DateTime.Now.ToString("dd/MM/yyyy hh:mm:ss tt");
-
-            // CRITICAL: Fresh font instance for outputPdf to prevent PdfException: PdfPages tree could be generated only once
-            var footerFont = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
-
-            for (int i = 1; i <= totalPages; i++)
-            {
-                var page = outputPdf.GetPage(i);
-                var pageSize = page.GetPageSize();
-                var canvas = new PdfCanvas(page);
-
-                canvas.BeginText()
-                    .SetFontAndSize(footerFont, 7f)
-                    .MoveText(18, 12)
-                    .ShowText($"Print Datetime: {printTimeStr}")
-                    .EndText();
-
-                string pageStr = $"Page {i} of {totalPages}";
-                float strWidth = footerFont.GetWidth(pageStr, 7f);
-                canvas.BeginText()
-                    .SetFontAndSize(footerFont, 7f)
-                    .MoveText(pageSize.GetWidth() - 18 - strWidth, 12)
-                    .ShowText(pageStr)
-                    .EndText();
-            }
-
-            outputPdf.Close();
             return outputStream.ToArray();
         }
 

@@ -1,26 +1,25 @@
 using GCTL.Core.ViewModels.Common;
 using GCTL.Core.ViewModels.HrmAtdShifts;
 using GCTL.Data.Models;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace GCTL.Service.HrmAtdShifts
 {
     public interface IHrmAtdShiftService
     {
-
         HrmAtdShift GetLeaveType(string code);
         bool DeleteLeaveType(string id);
 
         Task<List<HrmAtdShiftSetupViewModel>> GetAllAsync();
         Task<dynamic> GetDashboardCountAsync();
         Task<List<HrmAtdShiftSetupViewModel>> GetGridDataAsync(string searchText, string shiftType, string companyId, string branchId, string departmentId, string status);
+        Task<List<HrmAtdShiftDetailViewModel>> GetDetailsByShiftCodeAsync(string shiftCode = "");
         Task<HrmAtdShiftSetupViewModel> GetByIdAsync(string code);
         Task<bool> SaveAsync(HrmAtdShiftSetupViewModel entityVM);
         Task<bool> UpdateAsync(HrmAtdShiftSetupViewModel entityVM);
+        Task<bool> SaveDetailAsync(HrmAtdShiftDetailViewModel detailVM);
+        Task<bool> DeleteDetailAsync(decimal detailAutoId);
         Task<bool> DeleteAsync(string id);
         Task<string> GenerateNextCode();
         Task<bool> IsExistByCodeAsync(string code);
@@ -31,8 +30,5 @@ namespace GCTL.Service.HrmAtdShifts
         Task<bool> SavePermissionAsync(string accessCode);
         Task<bool> UpdatePermissionAsync(string accessCode);
         Task<bool> DeletePermissionAsync(string accessCode);
-
-     
-
     }
 }

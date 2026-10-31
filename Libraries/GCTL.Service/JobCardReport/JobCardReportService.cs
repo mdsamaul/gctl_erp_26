@@ -85,7 +85,7 @@ namespace GCTL.Service.JobCardReport
                 using var multi = await conn.QueryMultipleAsync(
                     "usp_JobCardReport",
                     param,
-                    commandType: CommandType.StoredProcedure);
+                    commandType: CommandType.StoredProcedure, commandTimeout: 300);
 
                 result.Rows = (await multi.ReadAsync<JobCardReportRowDto>()).ToList();
                 foreach (var r in result.Rows)
@@ -218,36 +218,29 @@ namespace GCTL.Service.JobCardReport
 
                 currentRow++; // Empty row before table
 
-                // Table Header
+                int tableStartRow = currentRow;
+
+                // Table Header (No background color as requested)
                 for (int c = 0; c < headers.Length; c++)
                 {
-                    var cell = ws.Cells[currentRow, c + 1];
-                    cell.Value = headers[c];
-                    cell.Style.Font.Bold = true;
-                    cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-                    cell.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
-                    cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                    cell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 240, 240));
-                    cell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
+                    ws.Cells[currentRow, c + 1].Value = headers[c];
                 }
+                ws.Cells[currentRow, 1, currentRow, colCount].Style.Font.Bold = true;
                 currentRow++;
 
                 // Data Rows
                 foreach (var r in emp.Rows)
                 {
-                    SetCell(ws, currentRow, 1, r.DateDisplay);
-                    SetCell(ws, currentRow, 2, r.Day);
-                    SetCell(ws, currentRow, 3, r.Shift);
-                    SetCell(ws, currentRow, 4, CleanZero(r.InTime));
-                    SetCell(ws, currentRow, 5, CleanZero(r.Late));
-                    SetCell(ws, currentRow, 6, CleanZero(r.OutTime));
-                    SetCell(ws, currentRow, 7, CleanZero(r.WorkHours));
+                    ws.Cells[currentRow, 1].Value = r.DateDisplay;
+                    ws.Cells[currentRow, 2].Value = r.Day;
+                    ws.Cells[currentRow, 3].Value = r.Shift;
+                    ws.Cells[currentRow, 4].Value = CleanZero(r.InTime);
+                    ws.Cells[currentRow, 5].Value = CleanZero(r.Late);
+                    ws.Cells[currentRow, 6].Value = CleanZero(r.OutTime);
+                    ws.Cells[currentRow, 7].Value = CleanZero(r.WorkHours);
 
                     var statusCell = ws.Cells[currentRow, 8];
                     statusCell.Value = r.Status;
-                    statusCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-                    statusCell.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
-                    statusCell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
                     statusCell.Style.Font.Bold = true;
 
                     if (r.Status == "P")
@@ -257,8 +250,26 @@ namespace GCTL.Service.JobCardReport
                     else if (r.Status == "A")
                         statusCell.Style.Font.Color.SetColor(Color.FromArgb(220, 53, 69)); // Red
 
-                    SetCell(ws, currentRow, 9, r.Remarks, leftAlign: true);
+                    ws.Cells[currentRow, 9].Value = r.Remarks;
                     currentRow++;
+                }
+
+                // Apply table alignments & thin borders in bulk range operations (100x faster than per-cell)
+                int tableEndRow = currentRow - 1;
+                if (tableEndRow >= tableStartRow)
+                {
+                    var tableRange = ws.Cells[tableStartRow, 1, tableEndRow, colCount];
+                    tableRange.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                    tableRange.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+                    tableRange.Style.Border.Top.Style = ExcelBorderStyle.Thin;
+                    tableRange.Style.Border.Bottom.Style = ExcelBorderStyle.Thin;
+                    tableRange.Style.Border.Left.Style = ExcelBorderStyle.Thin;
+                    tableRange.Style.Border.Right.Style = ExcelBorderStyle.Thin;
+
+                    if (tableEndRow > tableStartRow)
+                    {
+                        ws.Cells[tableStartRow + 1, 9, tableEndRow, 9].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
+                    }
                 }
 
                 // ── Employee Summary Stats for Excel ──
@@ -359,7 +370,16 @@ namespace GCTL.Service.JobCardReport
                 currentRow += 3; // Spacing before next employee
             }
 
-            ws.Cells[ws.Dimension.Address].AutoFitColumns();
+            // Set optimal column widths directly (avoids 40s AutoFitColumns scan on 75,000+ rows)
+            ws.Column(1).Width = 16; // Date / Summary labels
+            ws.Column(2).Width = 14; // Day / Summary values
+            ws.Column(3).Width = 22; // Shift
+            ws.Column(4).Width = 18; // In Time / Summary labels
+            ws.Column(5).Width = 14; // Late / Summary values
+            ws.Column(6).Width = 14; // Out Time
+            ws.Column(7).Width = 14; // W. Hour(s)
+            ws.Column(8).Width = 10; // Status
+            ws.Column(9).Width = 28; // Remarks
 
             return await package.GetAsByteArrayAsync();
         }

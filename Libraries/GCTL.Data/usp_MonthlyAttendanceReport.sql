@@ -97,22 +97,13 @@ BEGIN
     IF @RealFromDate IS NOT NULL
     BEGIN
         SET @RealFromDate = DATEFROMPARTS(YEAR(@RealFromDate), MONTH(@RealFromDate), 1);
-        IF @RealToDate IS NULL OR @RealToDate < EOMONTH(@RealFromDate)
-            SET @RealToDate = EOMONTH(ISNULL(@RealToDate, @RealFromDate));
-        ELSE
-            SET @RealToDate = EOMONTH(@RealToDate);
+        SET @RealToDate   = EOMONTH(@RealFromDate);
     END;
-
-    IF @RealToDate < @RealFromDate
-    BEGIN
-        DECLARE @TempDate DATE = @RealFromDate;
-        SET @RealFromDate = @RealToDate;
-        SET @RealToDate   = @TempDate;
-    END
 
     DECLARE @NextToDate DATE = DATEADD(DAY, 1, @RealToDate);
     DECLARE @FromDateTime DATETIME = CAST(@RealFromDate AS DATETIME);
     DECLARE @NextToDateTime DATETIME = CAST(@NextToDate AS DATETIME);
+    DECLARE @TodayDate DATE = CAST(GETDATE() AS DATE);
 
     -- Role-based access control
     DECLARE @IsAdmin      BIT = CASE WHEN @AccessCodeId NOT IN ('0002','0003','0005') THEN 1 ELSE 0 END;
@@ -179,6 +170,48 @@ BEGIN
     END
 
     -- ═══════════════════════════════════════════════════════════════════
+    -- ── PRE-COMPUTED SHIFT LOOKUP (Master HRM_ATD_Shift + Details) ────
+    -- ═══════════════════════════════════════════════════════════════════
+    CREATE TABLE #ShiftLookup (
+        ShiftCode    NVARCHAR(50)  COLLATE SQL_Latin1_General_CP1_CI_AS PRIMARY KEY,
+        ShiftDisplay NVARCHAR(200) COLLATE SQL_Latin1_General_CP1_CI_AS,
+        ShiftStart   TIME(0),
+        ShiftEnd     TIME(0),
+        LateCutoff   TIME(0)
+    );
+
+    ;WITH RankedShifts AS (
+        SELECT
+            s.ShiftCode,
+            s.ShiftName,
+            sd.ShiftStartTime,
+            sd.ShiftEndTime,
+            sd.LateTime,
+            ROW_NUMBER() OVER (
+                PARTITION BY s.ShiftCode
+                ORDER BY ISNULL(sd.IsActive, 1) DESC, sd.AutoId ASC
+            ) AS rn
+        FROM HRM_ATD_Shift s WITH (NOLOCK)
+        LEFT JOIN HRM_ATD_ShiftDetails sd WITH (NOLOCK) ON sd.ShiftCode = s.ShiftCode
+        WHERE s.ShiftCode IS NOT NULL AND s.ShiftCode <> ''
+    )
+    INSERT INTO #ShiftLookup (ShiftCode, ShiftDisplay, ShiftStart, ShiftEnd, LateCutoff)
+    SELECT
+        ShiftCode,
+        CASE
+            WHEN ShiftStartTime IS NOT NULL AND ShiftEndTime IS NOT NULL THEN
+                ISNULL(NULLIF(ShiftName, ''), 'G') + '(' +
+                SUBSTRING(CONVERT(VARCHAR(8), ShiftStartTime, 108), 1, 5) + '-' +
+                SUBSTRING(CONVERT(VARCHAR(8), ShiftEndTime, 108), 1, 5) + ')'
+            ELSE 'Day(09:00-18:00)'
+        END,
+        ISNULL(CAST(ShiftStartTime AS TIME(0)), CAST('09:00:00' AS TIME(0))),
+        ISNULL(CAST(ShiftEndTime AS TIME(0)), CAST('18:00:00' AS TIME(0))),
+        ISNULL(CAST(LateTime AS TIME(0)), CAST('09:15:00' AS TIME(0)))
+    FROM RankedShifts
+    WHERE rn = 1;
+
+    -- ═══════════════════════════════════════════════════════════════════
     -- ── ACTIVE EMPLOYEES (Covering Index Seek) ─────────────────────────
     -- ═══════════════════════════════════════════════════════════════════
     CREATE TABLE #ActiveEmployees (
@@ -216,22 +249,16 @@ BEGIN
         ISNULL(oi.CompanyCode, ''),
         ISNULL(comp.CompanyName, 'DataPath Ltd.'),
         ISNULL(oi.EmploymentNatureId, ''),
-        CASE
-            WHEN s.ShiftCode IS NOT NULL AND s.ShiftStartTime IS NOT NULL AND s.ShiftEndTime IS NOT NULL THEN
-                ISNULL(NULLIF(s.ShiftName,''), 'G') + '(' + 
-                SUBSTRING(CONVERT(VARCHAR(8), s.ShiftStartTime, 108), 1, 5) + '-' +
-                SUBSTRING(CONVERT(VARCHAR(8), s.ShiftEndTime, 108), 1, 5) + ')'
-            ELSE 'Day(09:00-18:00)'
-        END,
-        ISNULL(CAST(s.ShiftStartTime AS TIME(0)), CAST('09:00:00' AS TIME(0))),
-        ISNULL(CAST(s.ShiftEndTime AS TIME(0)), CAST('18:00:00' AS TIME(0))),
-        ISNULL(CAST(s.LateTime AS TIME(0)), CAST('09:15:00' AS TIME(0)))
+        ISNULL(sl.ShiftDisplay, 'Day(09:00-18:00)'),
+        ISNULL(sl.ShiftStart, CAST('09:00:00' AS TIME(0))),
+        ISNULL(sl.ShiftEnd, CAST('18:00:00' AS TIME(0))),
+        ISNULL(sl.LateCutoff, CAST('09:15:00' AS TIME(0)))
     FROM HRM_EmployeeOfficialInfo oi WITH (NOLOCK)
     INNER JOIN HRM_Employee e WITH (NOLOCK) ON e.EmployeeId = oi.EmployeeId
     LEFT  JOIN Core_Company comp WITH (NOLOCK) ON comp.CompanyCode = oi.CompanyCode AND oi.CompanyCode <> ''
     LEFT  JOIN HRM_Def_Department dept WITH (NOLOCK) ON dept.DepartmentCode = oi.DepartmentCode AND oi.DepartmentCode <> ''
     LEFT  JOIN HRM_Def_Designation desig WITH (NOLOCK) ON desig.DesignationCode = oi.DesignationCode AND oi.DesignationCode <> ''
-    LEFT  JOIN HRM_ATD_Shift s WITH (NOLOCK) ON s.ShiftCode = oi.ShiftCode AND oi.ShiftCode <> ''
+    LEFT  JOIN #ShiftLookup sl ON sl.ShiftCode = oi.ShiftCode AND oi.ShiftCode <> ''
     WHERE (oi.EmployeeStatus = '01' OR oi.EmployeeStatus = 'Active' OR oi.EmployeeStatus = '1' OR oi.EmployeeStatus = '' OR oi.EmployeeStatus IS NULL)
       AND (oi.EmployeeId IS NOT NULL AND oi.EmployeeId <> '')
       AND (NOT EXISTS (SELECT 1 FROM #CompFilter)      OR oi.CompanyCode IN (SELECT Code FROM #CompFilter))
@@ -270,7 +297,11 @@ BEGIN
     -- ═══════════════════════════════════════════════════════════════════
     -- ── FAST DATE SERIES ──────────────────────────────────────────────
     -- ═══════════════════════════════════════════════════════════════════
-    CREATE TABLE #Dates ([Date] DATE PRIMARY KEY);
+    CREATE TABLE #Dates (
+        [Date]    DATE PRIMARY KEY,
+        DayNum    INT,
+        IsFriSat  BIT
+    );
 
     ;WITH DateSeries AS (
         SELECT @RealFromDate AS [Date]
@@ -279,8 +310,11 @@ BEGIN
         FROM DateSeries
         WHERE [Date] < @RealToDate
     )
-    INSERT INTO #Dates ([Date])
-    SELECT [Date]
+    INSERT INTO #Dates ([Date], DayNum, IsFriSat)
+    SELECT
+        [Date],
+        DAY([Date]),
+        CASE WHEN DATENAME(WEEKDAY, [Date]) IN ('Friday', 'Saturday') THEN 1 ELSE 0 END
     FROM DateSeries
     OPTION (MAXRECURSION 0);
 
@@ -333,7 +367,6 @@ BEGIN
         EmployeeId NVARCHAR(50)   COLLATE SQL_Latin1_General_CP1_CI_AS,
         LeaveDate  DATE,
         LeaveCode  NVARCHAR(50)   COLLATE SQL_Latin1_General_CP1_CI_AS,
-        Reason     NVARCHAR(1000) COLLATE SQL_Latin1_General_CP1_CI_AS,
         PRIMARY KEY (EmployeeId, LeaveDate)
     );
 
@@ -341,8 +374,7 @@ BEGIN
         SELECT 
             la.EmployeeId,
             d.[Date] AS LeaveDate,
-            ISNULL(NULLIF(lt.ShortName, ''), 'L') AS LeaveCode,
-            ISNULL(NULLIF(LTRIM(RTRIM(la.Reason)), ''), '') AS Reason
+            ISNULL(NULLIF(lt.ShortName, ''), 'L') AS LeaveCode
         FROM HRM_LeaveApplicationEntry la WITH (NOLOCK)
         INNER JOIN #ActiveEmployees ae ON ae.EmployeeId = la.EmployeeId
         INNER JOIN #Dates d ON d.[Date] >= CONVERT(DATE, la.StartDate) AND d.[Date] <= CONVERT(DATE, la.EndDate)
@@ -351,8 +383,8 @@ BEGIN
           AND (la.IsApproved NOT IN ('Canceled', 'Rejected'))
           AND (la.IsApproved IN ('Y','Approved') OR la.HODApprovalStatus IN ('Y','Approved') OR la.HRApprovalStatus IN ('Y','Approved'))
     )
-    INSERT INTO #EmpLeaves (EmployeeId, LeaveDate, LeaveCode, Reason)
-    SELECT EmployeeId, LeaveDate, MAX(LeaveCode), MAX(Reason)
+    INSERT INTO #EmpLeaves (EmployeeId, LeaveDate, LeaveCode)
+    SELECT EmployeeId, LeaveDate, MAX(LeaveCode)
     FROM ApprovedLeaves
     GROUP BY EmployeeId, LeaveDate;
 
@@ -360,24 +392,16 @@ BEGIN
     -- ── HOLIDAYS ──────────────────────────────────────────────────────
     -- ═══════════════════════════════════════════════════════════════════
     CREATE TABLE #Holidays (
-        HolidayDate DATE PRIMARY KEY,
-        HolidayName NVARCHAR(200) COLLATE SQL_Latin1_General_CP1_CI_AS
+        HolidayDate DATE PRIMARY KEY
     );
 
-    INSERT INTO #Holidays (HolidayDate, HolidayName)
+    INSERT INTO #Holidays (HolidayDate)
     VALUES 
-        ('2026-01-01', 'New Year''s Day'),
-        ('2026-02-21', 'International Mother Language Day'),
-        ('2026-03-19', 'Holiday'),
-        ('2026-03-20', 'Holiday'),
-        ('2026-03-26', 'Independence Day'),
-        ('2026-04-14', 'Bengali New Year'),
-        ('2026-05-01', 'May Day'),
-        ('2026-12-16', 'Victory Day'),
-        ('2026-12-25', 'Christmas Day');
+        ('2026-01-01'), ('2026-02-21'), ('2026-03-19'), ('2026-03-20'),
+        ('2026-03-26'), ('2026-04-14'), ('2026-05-01'), ('2026-12-16'), ('2026-12-25');
 
-    INSERT INTO #Holidays (HolidayDate, HolidayName)
-    SELECT DISTINCT d.[Date], ISNULL(NULLIF(h.HolidayName, ''), 'Holiday')
+    INSERT INTO #Holidays (HolidayDate)
+    SELECT DISTINCT d.[Date]
     FROM #Dates d
     INNER JOIN HRM_ATD_Holiday h WITH (NOLOCK) ON d.[Date] >= CONVERT(DATE, h.FromDate) AND d.[Date] <= CONVERT(DATE, h.ToDate)
     WHERE h.FromDate < @NextToDate AND h.ToDate >= @RealFromDate
@@ -405,29 +429,21 @@ BEGIN
     CREATE TABLE #EmpRosters (
         EmployeeId   NVARCHAR(50)  COLLATE SQL_Latin1_General_CP1_CI_AS,
         RosterDate   DATE,
-        ShiftDisplay NVARCHAR(200) COLLATE SQL_Latin1_General_CP1_CI_AS,
-        ShiftStart   TIME(0),
-        ShiftEnd     TIME(0),
         LateCutoff   TIME(0),
         IsWeekend    BIT,
         PRIMARY KEY (EmployeeId, RosterDate)
     );
 
-    INSERT INTO #EmpRosters (EmployeeId, RosterDate, ShiftDisplay, ShiftStart, ShiftEnd, LateCutoff, IsWeekend)
+    INSERT INTO #EmpRosters (EmployeeId, RosterDate, LateCutoff, IsWeekend)
     SELECT 
         rse.EmployeeId,
         CONVERT(DATE, rse.[Date]),
-        ISNULL(NULLIF(s.ShiftName,''), 'G') + '(' + 
-        SUBSTRING(CONVERT(VARCHAR(8), s.ShiftStartTime, 108), 1, 5) + '-' +
-        SUBSTRING(CONVERT(VARCHAR(8), s.ShiftEndTime, 108), 1, 5) + ')',
-        CAST(s.ShiftStartTime AS TIME(0)),
-        CAST(s.ShiftEndTime AS TIME(0)),
-        CAST(s.LateTime AS TIME(0)),
+        sl.LateCutoff,
         CASE WHEN rse.Weekend = 'Y' OR rse.Weekend = '1' THEN 1 ELSE 0 END
     FROM HRM_RosterScheduleEntry rse WITH (NOLOCK)
     INNER JOIN #ActiveEmployees ae ON ae.EmployeeId = rse.EmployeeId
     INNER JOIN #Dates d ON d.[Date] = CONVERT(DATE, rse.[Date])
-    LEFT JOIN HRM_ATD_Shift s WITH (NOLOCK) ON s.ShiftCode = rse.ShiftCode
+    LEFT JOIN #ShiftLookup sl ON sl.ShiftCode = rse.ShiftCode
     WHERE rse.[Date] >= @FromDateTime AND rse.[Date] < @NextToDateTime;
 
     CREATE NONCLUSTERED INDEX IX_Dept_Emp ON #ActiveEmployees (DepartmentName, EmployeeId);
@@ -462,10 +478,10 @@ BEGIN
         '' AS OutTime,
         '' AS WorkHours,
         CASE
-            WHEN d.[Date] > CAST(GETDATE() AS DATE) THEN ''
+            WHEN d.[Date] > @TodayDate THEN ''
             WHEN lv.LeaveCode IS NOT NULL THEN lv.LeaveCode
             WHEN h.HolidayDate IS NOT NULL THEN 'H'
-            WHEN ros.IsWeekend = 1 OR ew.WeekendDate IS NOT NULL OR DATENAME(WEEKDAY, d.[Date]) IN ('Friday', 'Saturday') THEN 'W'
+            WHEN ros.IsWeekend = 1 OR ew.WeekendDate IS NOT NULL OR d.IsFriSat = 1 THEN 'W'
             WHEN p.FirstPunch IS NOT NULL THEN
                 CASE WHEN CAST(p.FirstPunch AS TIME(0)) > COALESCE(ros.LateCutoff, ae.LateCutoff) THEN 'L' ELSE 'P' END
             ELSE 'A'
@@ -509,6 +525,7 @@ BEGIN
     DROP TABLE #DesigFilter;
     DROP TABLE #EmpNatureFilter;
     DROP TABLE #EmpFilter;
+    DROP TABLE #ShiftLookup;
     DROP TABLE #ActiveEmployees;
     DROP TABLE #EmpFingerprints;
     DROP TABLE #Dates;

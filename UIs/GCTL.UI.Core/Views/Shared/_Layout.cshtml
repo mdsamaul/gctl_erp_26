@@ -1,4 +1,4 @@
-﻿@using GCTL.Core.Configurations
+@using GCTL.Core.Configurations
 @inject ApplicationSettings applicationSettings
 
 <!DOCTYPE html>
@@ -317,6 +317,13 @@
 
     </script>
     @RenderSection("Scripts", required: false)
+    @if (Context.Request.Path.Value != null && Context.Request.Path.Value.Contains("HRMATDShifts", StringComparison.OrdinalIgnoreCase))
+    {
+        <script src="~/FrontEnd/plugins/jszip/jszip.min.js"></script>
+        <script src="~/FrontEnd/plugins/pdfmake/pdfmake.min.js"></script>
+        <script src="~/FrontEnd/plugins/pdfmake/vfs_fonts.js"></script>
+        <script src="~/js/pages/HrmAtdShiftsReport.js" asp-append-version="true"></script>
+    }
 
 </body>
 

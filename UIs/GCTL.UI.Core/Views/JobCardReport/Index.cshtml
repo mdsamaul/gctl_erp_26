@@ -291,12 +291,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
-    <script src="~/js/pages/JobCardReport.js"></script>
+    <script src="~/js/pages/JobCardReport.js" asp-append-version="true"></script>
 
     <script type="text/javascript">
         $(function () {
             $.jobCardReport({
-                baseUrl: '@Url.Action("Index", "JobCardReport")',
+                baseUrl: '@Url.Action("", "JobCardReport")',
                 load: async function () {
                     bindRemoteMultiselect("#companySelect", "/GcAccessFilter/companies", "Select Company", "company");
                     bindRemoteMultiselect("#employeeSelect", "/GcAccessFilter/employees", "Select Employee", null);
@@ -312,7 +312,7 @@
                     } else {
                         ms_InitializeMultiselects();
                         ms_Reset("#companySelect");
-                        await ms_LoadNext("#companySelect", "...");
+                        await ms_LoadNext("#companySelect", "/GcAccessFilter/companies");
                         await ms_AutoSelectCompany("001");
                     }
                 }

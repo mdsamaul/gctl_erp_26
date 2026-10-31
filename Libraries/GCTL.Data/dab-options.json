@@ -403,6 +403,10 @@
          "ObjectType": 0
       },
       {
+         "Name": "[dbo].[HRM_ATD_ShiftDetails]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[HRM_Att_WorkingDayDeclaration]",
          "ObjectType": 0
       },
@@ -512,6 +516,10 @@
       },
       {
          "Name": "[dbo].[HRM_Def_Occupation]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[HRM_Def_OvertimeRule]",
          "ObjectType": 0
       },
       {
@@ -1652,10 +1660,6 @@
       },
       {
          "Name": "[dbo].[usp_GetAttendanceMovement]",
-         "ObjectType": 1
-      },
-      {
-         "Name": "[dbo].[usp_GetLeaveDashboard]",
          "ObjectType": 1
       },
       {
